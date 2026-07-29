@@ -1,0 +1,1719 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Vantage — HMI Compliance Auditor</title>
+<style>
+  :root {
+    --bg: #0f1216;
+    --surface: #171b21;
+    --surface-2: #1e242c;
+    --line: #2a3139;
+    --text: #e8ecf0;
+    --muted: #8b949e;
+    --amber: #f0a500;
+    --amber-dim: rgba(240,165,0,0.15);
+    --teal: #3fb8a6;
+    --teal-dim: rgba(63,184,166,0.15);
+    --red: #e2504a;
+    --red-dim: rgba(226,80,74,0.15);
+    --blue: #5b9fd4;
+    --mono: 'Cascadia Code', 'Courier New', Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --radius: 6px;
+    --shadow: 0 4px 24px rgba(0,0,0,0.35);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; line-height: 1.5; }
+
+  header {
+    border-bottom: 1px solid var(--line);
+    padding: 14px 24px;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 16px; flex-wrap: wrap; background: var(--surface);
+  }
+  .brand h1 {
+    font-family: var(--mono); font-size: 15px; letter-spacing: 3px;
+    text-transform: uppercase; color: var(--text);
+  }
+  .brand h1 span { color: var(--amber); font-weight: bold; }
+  .brand p { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .header-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+  .btn {
+    background: transparent; border: 1px solid var(--line); color: var(--text);
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.5px; text-transform: uppercase;
+    padding: 8px 14px; border-radius: var(--radius); cursor: pointer;
+    transition: background 0.15s, border-color 0.15s; white-space: nowrap;
+  }
+  .btn:hover { background: var(--surface-2); border-color: var(--muted); }
+  .btn:disabled { opacity: 0.35; cursor: not-allowed; }
+  .btn-primary { border-color: var(--amber); color: var(--amber); }
+  .btn-primary:hover { background: var(--amber-dim); }
+  .btn-sm { padding: 5px 10px; font-size: 10px; }
+  .btn.active { background: var(--amber-dim); border-color: var(--amber); color: var(--amber); }
+
+  .layout {
+    display: flex;
+    min-height: calc(100vh - 100px);
+  }
+  @media (max-width: 960px) {
+    .layout { flex-direction: column; }
+    .sidebar { width: auto !important; max-width: none !important; resize: none !important; border-left: none; border-top: 1px solid var(--line); direction: ltr !important; }
+  }
+
+  .main { flex: 1; padding: 20px 24px; overflow: auto; min-width: 0; }
+
+  .upload-zone {
+    border: 2px dashed var(--line); border-radius: var(--radius);
+    padding: 48px 24px; text-align: center; cursor: pointer;
+    transition: border-color 0.2s, background 0.2s; background: var(--surface);
+  }
+  .upload-zone:hover, .upload-zone.dragover { border-color: var(--amber); background: var(--amber-dim); }
+  .upload-zone .icon { font-size: 32px; margin-bottom: 12px; opacity: 0.5; }
+  .upload-zone p { color: var(--muted); font-size: 14px; }
+  .upload-zone .hint { font-size: 12px; margin-top: 6px; opacity: 0.7; }
+  input[type=file] { display: none; }
+
+  .pipeline {
+    display: none; gap: 4px; margin-bottom: 16px; flex-wrap: wrap;
+  }
+  .pipeline.visible { display: flex; }
+  .pipe-step {
+    font-family: var(--mono); font-size: 9px; text-transform: uppercase;
+    letter-spacing: 0.5px; padding: 4px 8px; border-radius: 99px;
+    border: 1px solid var(--line); color: var(--muted);
+  }
+  .pipe-step.done { border-color: var(--teal); color: var(--teal); background: var(--teal-dim); }
+  .pipe-step.active { border-color: var(--amber); color: var(--amber); background: var(--amber-dim); }
+
+  .canvas-section { display: none; }
+  .canvas-section.visible { display: block; }
+
+  .canvas-toolbar {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; margin-bottom: 12px; flex-wrap: wrap;
+  }
+  .canvas-toolbar .left, .canvas-toolbar .right { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+  .canvas-wrap {
+    position: relative; display: inline-block; max-width: 100%;
+    border-radius: var(--radius); overflow: hidden;
+    box-shadow: var(--shadow); border: 1px solid var(--line); cursor: crosshair;
+  }
+  canvas { display: block; max-width: 100%; }
+  .canvas-tooltip {
+    position: absolute; pointer-events: none; background: var(--surface);
+    border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 8px 12px; font-size: 12px; max-width: 260px;
+    box-shadow: var(--shadow); z-index: 10; display: none; line-height: 1.4;
+  }
+  .canvas-tooltip .tt-cat {
+    font-family: var(--mono); font-size: 10px; text-transform: uppercase;
+    letter-spacing: 0.5px; margin-bottom: 4px;
+  }
+  .canvas-tooltip .tt-cat.high { color: var(--red); }
+  .canvas-tooltip .tt-cat.medium { color: var(--amber); }
+  .canvas-tooltip .tt-cat.low { color: var(--teal); }
+
+  .legend {
+    display: flex; gap: 16px; font-size: 12px; color: var(--muted);
+    margin-top: 12px; flex-wrap: wrap;
+  }
+  .legend span { display: flex; align-items: center; gap: 6px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+
+  .status {
+    font-family: var(--mono); font-size: 12px; color: var(--muted);
+    margin-top: 12px; min-height: 18px; display: flex; align-items: center; gap: 8px;
+  }
+  .spinner {
+    width: 14px; height: 14px; border: 2px solid var(--line);
+    border-top-color: var(--amber); border-radius: 50%;
+    animation: spin 0.7s linear infinite; display: none;
+  }
+  .spinner.active { display: inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .sidebar {
+    background: var(--surface); border-left: 1px solid var(--line);
+    display: flex; flex-direction: column; overflow-y: auto; overflow-x: hidden;
+    width: 400px; min-width: 280px; max-width: 800px;
+    flex-shrink: 0;
+    resize: horizontal;
+    direction: rtl; /* Places native resize handle on the left edge */
+  }
+  .sidebar > * {
+    direction: ltr; /* Restore text direction */
+  }
+  .sidebar-empty {
+    padding: 40px 24px; text-align: center; color: var(--muted);
+    font-size: 13px; flex: 1; display: flex; align-items: center; justify-content: center;
+  }
+
+  .score-panel { padding: 18px 20px; border-bottom: 1px solid var(--line); display: none; }
+  .score-panel.visible { display: block; }
+
+  .dual-score {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px;
+  }
+  .score-box {
+    background: var(--surface-2); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 12px; text-align: center;
+  }
+  .score-box .val {
+    font-family: var(--mono); font-size: 26px; font-weight: 600; line-height: 1;
+  }
+  .score-box .lbl {
+    font-size: 10px; color: var(--muted); text-transform: uppercase;
+    letter-spacing: 0.5px; margin-top: 4px;
+  }
+  .score-box.compliance .val.good { color: var(--teal); }
+  .score-box.compliance .val.mid { color: var(--amber); }
+  .score-box.compliance .val.bad { color: var(--red); }
+  .score-box.risk .val.good { color: var(--teal); }
+  .score-box.risk .val.mid { color: var(--amber); }
+  .score-box.risk .val.bad { color: var(--red); }
+
+  .cognitive-bar {
+    margin-bottom: 14px;
+  }
+  .cognitive-bar .lbl-row {
+    display: flex; justify-content: space-between; font-size: 11px;
+    color: var(--muted); margin-bottom: 4px;
+  }
+  .cognitive-bar .lbl-row span:last-child { font-family: var(--mono); color: var(--text); }
+  .bar-track {
+    height: 6px; background: var(--bg); border-radius: 99px; overflow: hidden;
+  }
+  .bar-fill {
+    height: 100%; border-radius: 99px; transition: width 0.4s;
+  }
+
+  .metrics-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 14px;
+  }
+  .metric {
+    background: var(--bg); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 8px 10px;
+    position: relative;
+    cursor: help;
+  }
+  .metric::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: calc(100% + 8px);
+    background: rgba(30, 30, 35, 0.95);
+    backdrop-filter: blur(8px);
+    color: #e0e0e0;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 11.5px;
+    font-family: var(--sans);
+    white-space: pre-wrap;
+    width: 220px;
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    border: 1px solid var(--line);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+    z-index: 100;
+    line-height: 1.4;
+  }
+  .metric:nth-child(odd)::after {
+    left: 0;
+    transform: translateX(0) translateY(4px);
+  }
+  .metric:nth-child(odd):hover::after {
+    opacity: 1; visibility: visible;
+    transform: translateX(0) translateY(0);
+  }
+  .metric:nth-child(even)::after {
+    left: auto; right: 0;
+    transform: translateX(0) translateY(4px);
+  }
+  .metric:nth-child(even):hover::after {
+    opacity: 1; visibility: visible;
+    transform: translateX(0) translateY(0);
+  }
+  .metric .mv { font-family: var(--mono); font-size: 14px; }
+  .metric .ml {
+    font-size: 9px; color: var(--muted); text-transform: uppercase;
+    letter-spacing: 0.4px; margin-top: 2px;
+  }
+  .metric.warn .mv { color: var(--amber); }
+  .metric.bad .mv { color: var(--red); }
+
+  .severity-counts { display: flex; gap: 8px; }
+  .sev-badge {
+    flex: 1; text-align: center; padding: 8px 6px;
+    border-radius: var(--radius); background: var(--surface-2); border: 1px solid var(--line);
+  }
+  .sev-badge .n { font-family: var(--mono); font-size: 18px; }
+  .sev-badge .l { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+  .sev-badge.high .n { color: var(--red); }
+  .sev-badge.medium .n { color: var(--amber); }
+  .sev-badge.low .n { color: var(--teal); }
+
+  .category-bar {
+    padding: 12px 20px; border-bottom: 1px solid var(--line);
+    display: none; flex-wrap: wrap; gap: 6px;
+  }
+  .category-bar.visible { display: flex; }
+  .cat-pill {
+    font-family: var(--mono); font-size: 10px; padding: 4px 10px;
+    border-radius: 99px; border: 1px solid var(--line); color: var(--muted);
+    cursor: pointer; transition: all 0.15s; text-transform: uppercase; letter-spacing: 0.3px;
+  }
+  .cat-pill:hover { border-color: var(--muted); color: var(--text); }
+  .cat-pill.active { border-color: var(--amber); color: var(--amber); background: var(--amber-dim); }
+
+  .filter-bar {
+    padding: 10px 20px; border-bottom: 1px solid var(--line);
+    display: none; gap: 6px;
+  }
+  .filter-bar.visible { display: flex; }
+  .filter-btn {
+    font-family: var(--mono); font-size: 10px; padding: 4px 10px;
+    border-radius: var(--radius); border: 1px solid var(--line);
+    background: transparent; color: var(--muted); cursor: pointer; text-transform: uppercase;
+  }
+  .filter-btn.active { border-color: var(--text); color: var(--text); }
+  .filter-btn[data-sev="high"].active { border-color: var(--red); color: var(--red); }
+  .filter-btn[data-sev="medium"].active { border-color: var(--amber); color: var(--amber); }
+  .filter-btn[data-sev="low"].active { border-color: var(--teal); color: var(--teal); }
+
+  .issue-list { flex: 1; overflow-y: auto; padding: 12px; }
+  .issue {
+    border: 1px solid var(--line); border-left: 3px solid var(--line);
+    padding: 12px 14px; margin-bottom: 8px; background: var(--surface-2);
+    border-radius: 0 var(--radius) var(--radius) 0; cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .issue:hover { background: var(--bg); }
+  .issue.selected { border-color: var(--amber); background: var(--amber-dim); }
+  .issue.rule-added { border-left-style: dashed; }
+  .issue.high { border-left-color: var(--red); }
+  .issue.medium { border-left-color: var(--amber); }
+  .issue.low { border-left-color: var(--teal); }
+  .issue-top {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 10px; font-family: var(--mono); text-transform: uppercase;
+    letter-spacing: 0.5px; color: var(--muted); margin-bottom: 6px; gap: 8px;
+  }
+  .issue-top .cat { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .issue-top .sev.high { color: var(--red); }
+  .issue-top .sev.medium { color: var(--amber); }
+  .issue-top .sev.low { color: var(--teal); }
+  .issue p { font-size: 13px; line-height: 1.45; }
+  .issue .rec { color: var(--muted); font-size: 12px; margin-top: 6px; }
+  .issue .ref { font-family: var(--mono); font-size: 10px; color: var(--blue); margin-top: 6px; }
+  .issue .tag {
+    display: inline-block; font-family: var(--mono); font-size: 9px;
+    padding: 1px 6px; border-radius: 3px; margin-top: 6px;
+    background: var(--bg); color: var(--muted); border: 1px solid var(--line);
+  }
+
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+    display: none; align-items: center; justify-content: center;
+    z-index: 100; padding: 24px;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 24px; max-width: 440px; width: 100%; box-shadow: var(--shadow);
+  }
+  .modal h2 {
+    font-family: var(--mono); font-size: 13px; text-transform: uppercase;
+    letter-spacing: 1px; color: var(--amber); margin-bottom: 16px;
+  }
+  .modal label {
+    display: block; font-size: 11px; color: var(--muted); font-family: var(--mono);
+    text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;
+  }
+  .modal input[type=password], .modal input[type=text] {
+    width: 100%; background: var(--bg); border: 1px solid var(--line);
+    color: var(--text); padding: 10px 12px; border-radius: var(--radius);
+    font-family: var(--mono); font-size: 13px; margin-bottom: 16px;
+  }
+  .modal .note { font-size: 12px; color: var(--muted); line-height: 1.5; margin-bottom: 16px; }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+  footer {
+    border-top: 1px solid var(--line); padding: 12px 24px;
+    font-size: 11px; color: var(--muted); line-height: 1.6; background: var(--surface);
+    display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <h1>VANTA<span>GE</span></h1>
+    <p>AI-assisted cognitive load &amp; human-factors compliance auditor &middot; ISA-101 / NUREG-0700</p>
+  </div>
+  <nav class="nav-tabs" style="display:flex;gap:4px;background:var(--bg);padding:4px;border-radius:var(--radius);border:1px solid var(--line);">
+    <a href="HMI.html" class="nav-tab active" style="font-family:var(--mono);font-size:11px;color:var(--amber);text-decoration:none;padding:5px 12px;border-radius:4px;background:var(--surface);border:1px solid var(--line);">Single Audit</a>
+    <a href="batch.html" class="nav-tab" style="font-family:var(--mono);font-size:11px;color:var(--muted);text-decoration:none;padding:5px 12px;border-radius:4px;">Batch Auditor</a>
+    <a href="history.html" class="nav-tab" style="font-family:var(--mono);font-size:11px;color:var(--muted);text-decoration:none;padding:5px 12px;border-radius:4px;">Historical Trends</a>
+    <a href="error-logs.html" target="_blank" class="nav-tab" style="font-family:var(--mono);font-size:11px;color:var(--muted);text-decoration:none;padding:5px 12px;border-radius:4px;">Error Logs</a>
+    <a href="tests.html" target="_blank" class="nav-tab" style="font-family:var(--mono);font-size:11px;color:var(--muted);text-decoration:none;padding:5px 12px;border-radius:4px;">Unit Tests</a>
+  </nav>
+  <div class="header-actions">
+    <button class="btn btn-sm" id="settingsBtn">API Settings</button>
+    <button class="btn btn-sm" id="saveHistoryBtn" disabled>Save to History</button>
+    <button class="btn btn-sm" id="exportBtn" disabled>Export Report</button>
+    <button class="btn btn-primary" id="analyzeBtn" disabled>Analyze Screen</button>
+  </div>
+</header>
+
+<div class="layout">
+  <div class="main">
+    <div class="upload-zone" id="uploadZone">
+      <div class="icon">&#128247;</div>
+      <p>Drop an HMI / SCADA screenshot here, or click to browse</p>
+      <p class="hint">PNG or JPG &middot; Paste from clipboard (Ctrl+V)</p>
+    </div>
+    <input type="file" id="fileInput" accept="image/png,image/jpeg,image/webp" />
+
+    <div class="pipeline" id="pipeline">
+      <span class="pipe-step" data-step="upload">Upload</span>
+      <span class="pipe-step" data-step="features">Feature Extraction</span>
+      <span class="pipe-step" data-step="ai">AI Reasoning</span>
+      <span class="pipe-step" data-step="rules">Rule Engine</span>
+      <span class="pipe-step" data-step="score">Risk Scoring</span>
+      <span class="pipe-step" data-step="heatmap">Heatmap</span>
+      <span class="pipe-step" data-step="report">Report</span>
+    </div>
+
+    <div class="canvas-section" id="canvasSection">
+      <div class="canvas-toolbar">
+        <div class="left">
+          <button class="btn btn-sm" id="toggleHeatmap" data-on="true">Heatmap On</button>
+          <button class="btn btn-sm" id="heatmapMode" data-mode="thermal">Mode: Thermal</button>
+          <button class="btn btn-sm" id="toggleBoxes" data-on="true">Bounding Boxes</button>
+          <label style="font-family:var(--mono);font-size:10px;color:var(--muted);display:flex;align-items:center;gap:6px;margin-left:4px;">
+            Opacity
+            <input type="range" id="heatmapOpacitySlider" min="10" max="100" value="65" style="width:70px;accent-color:var(--amber);cursor:pointer;" />
+            <span id="opacityVal" style="width:30px;color:var(--text);">65%</span>
+          </label>
+          <button class="btn btn-sm" id="resetView">Reset View</button>
+        </div>
+        <div class="right">
+          <button class="btn btn-sm" id="changeImage">Change Image</button>
+        </div>
+      </div>
+      <div class="canvas-wrap" id="canvasWrap">
+        <canvas id="canvas"></canvas>
+        <div class="canvas-tooltip" id="tooltip"></div>
+      </div>
+      <div class="legend">
+        <span><i class="dot" style="background:var(--red)"></i>High risk</span>
+        <span><i class="dot" style="background:var(--amber)"></i>Medium risk</span>
+        <span><i class="dot" style="background:var(--teal)"></i>Low risk</span>
+        <span style="margin-left:8px; opacity:0.6">Hover regions &middot; Click to highlight</span>
+      </div>
+    </div>
+
+    <div class="status" id="status">
+      <span class="spinner" id="spinner"></span>
+      <span id="statusText"></span>
+    </div>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-empty" id="sidebarEmpty">
+      Upload a control panel screenshot and run analysis to see compliance findings, risk scores, and cognitive load estimates.
+    </div>
+
+    <div class="score-panel" id="scorePanel">
+      <div class="dual-score">
+        <div class="score-box compliance">
+          <div class="val" id="complianceVal">—</div>
+          <div class="lbl">Compliance %</div>
+        </div>
+        <div class="score-box risk">
+          <div class="val" id="riskVal">—</div>
+          <div class="lbl">Risk Score</div>
+        </div>
+      </div>
+
+      <div class="cognitive-bar">
+        <div class="lbl-row">
+          <span>Estimated Cognitive Load</span>
+          <span id="cognitiveLabel">—</span>
+        </div>
+        <div class="bar-track"><div class="bar-fill" id="cognitiveFill" style="width:0;background:var(--teal)"></div></div>
+      </div>
+
+      <div class="metrics-grid" id="metricsGrid"></div>
+
+      <div class="severity-counts" id="severityCounts"></div>
+    </div>
+
+    <div class="category-bar" id="categoryBar"></div>
+    <div class="filter-bar" id="filterBar">
+      <button class="filter-btn active" data-sev="all">All</button>
+      <button class="filter-btn" data-sev="high">High</button>
+      <button class="filter-btn" data-sev="medium">Medium</button>
+      <button class="filter-btn" data-sev="low">Low</button>
+    </div>
+
+    <div class="issue-list" id="issueList"></div>
+  </aside>
+</div>
+
+<footer>
+  <span>Advisory screening tool — not a certified ISA-101 or NUREG-0700 audit. Static screenshot analysis only.</span>
+  <span>IIT Kanpur &middot; Arshbir Singh &amp; Ashman Das &middot; July 2026</span>
+</footer>
+
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal">
+    <h2>API Configuration</h2>
+    <p class="note">Gemini Vision API key stored locally in your browser. Required for AI reasoning layer.</p>
+    <label for="apiKey">Gemini API Key</label>
+    <input type="password" id="apiKey" placeholder="AIza..." autocomplete="off" />
+    <div class="modal-actions">
+      <button class="btn" id="modalClose">Cancel</button>
+      <button class="btn btn-primary" id="modalSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="saveHistoryBackdrop">
+  <div class="modal">
+    <h2>Save Audit to History</h2>
+    <p class="note">Assign this audit run to an industrial plant and screen tag in local IndexedDB history for trend tracking.</p>
+    <label for="historyPlantName">Plant Name</label>
+    <input type="text" id="historyPlantName" placeholder="e.g. Jamnagar Refinery Unit 4" value="Jamnagar Refinery Unit 4" />
+    <label for="historyScreenName">Screen Name</label>
+    <input type="text" id="historyScreenName" placeholder="e.g. Crude Distillation Unit (CDU-1)" value="Crude Distillation Unit (CDU-1)" />
+    <label for="historyScreenTag">Screen Tag</label>
+    <input type="text" id="historyScreenTag" placeholder="e.g. HMI-CDU-101" value="HMI-CDU-101" />
+    <label for="historyScreenType">Screen Hierarchy Type</label>
+    <select id="historyScreenType" style="width:100%;background:var(--bg);border:1px solid var(--line);color:var(--text);padding:10px 12px;border-radius:var(--radius);font-family:var(--mono);font-size:13px;margin-bottom:16px;">
+      <option value="overview">Level 1 - Overview / Plant-wide</option>
+      <option value="unit">Level 2 - Unit Control</option>
+      <option value="detail">Level 3 - Detail / Diagnostic</option>
+      <option value="alarm">Level 4 - Alarm / Emergency</option>
+    </select>
+    <div class="modal-actions">
+      <button class="btn" id="saveHistoryClose">Cancel</button>
+      <button class="btn btn-primary" id="saveHistoryConfirm">Save to History</button>
+    </div>
+  </div>
+</div>
+
+<canvas id="analysisCanvas" style="display:none"></canvas>
+
+<script src="db.js"></script>
+<script src="worker.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+
+const CATEGORIES = {
+  'color-overuse': 'Color Overuse',
+  'alarm-clutter': 'Alarm Clutter',
+  'information-density': 'Info Density',
+  'navigation-clutter': 'Navigation Clutter',
+  'contrast-legibility': 'Contrast / Legibility'
+};
+
+// Rule thresholds (ISA-101 / NUREG-0700 derived, Section 10)
+const THRESHOLDS = {
+  maxDistinctColors: 6,       // ISA-101 minimal color use
+  maxAlarmIndicators: 4,      // EEMUA 191 alarm clutter proxy
+  maxInfoDensity: 0.35,       // NUREG-0700 density limit (normalized)
+  minContrastRatio: 4.5,      // WCAG / NUREG readability
+  maxColorEntropy: 3.8,       // Higher = more chaotic palette
+  maxAlarmDensity: 0.08       // Red/yellow alarm pixel ratio
+};
+
+// Risk weights (Section 10.6): Risk = w1·IDS + w2·AD + w3·CE + w4·(1/CR)
+const WEIGHTS = { ids: 0.25, ad: 0.30, ce: 0.25, cr: 0.20 };
+const RISK_MAX = 1.0;
+
+let currentImage = null;
+let currentBase64 = null;
+let currentMediaType = null;
+let analysisData = null;
+let metricsData = null;
+let selectedIssueIdx = -1;
+let hoveredIssueIdx = -1;
+let activeCategory = 'all';
+let activeSeverity = 'all';
+let showHeatmap = true;
+let showBoxes = true;
+let heatmapMode = 'thermal'; // 'thermal' | 'solid' | 'hybrid' | 'grid'
+let heatmapOpacity = 0.65;
+
+const apiKeyInput = $('apiKey');
+const DEFAULT_API_KEY = 'AIzaSyBpd2ribU0vt7ChX6NfKnYHzHQDsjWqZdY';
+if (!localStorage.getItem('hmi_gemini_key')) localStorage.setItem('hmi_gemini_key', DEFAULT_API_KEY);
+if (localStorage.getItem('hmi_gemini_key')) apiKeyInput.value = localStorage.getItem('hmi_gemini_key');
+
+$('settingsBtn').addEventListener('click', () => $('modalBackdrop').classList.add('open'));
+$('modalClose').addEventListener('click', () => $('modalBackdrop').classList.remove('open'));
+$('modalSave').addEventListener('click', () => {
+  localStorage.setItem('hmi_gemini_key', apiKeyInput.value.trim());
+  $('modalBackdrop').classList.remove('open');
+  setStatus('API key saved.');
+});
+$('modalBackdrop').addEventListener('click', (e) => {
+  if (e.target === $('modalBackdrop')) $('modalBackdrop').classList.remove('open');
+});
+
+// --- Upload ---
+const uploadZone = $('uploadZone');
+const fileInput = $('fileInput');
+uploadZone.addEventListener('click', () => fileInput.click());
+uploadZone.addEventListener('dragover', (e) => { e.preventDefault(); uploadZone.classList.add('dragover'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+uploadZone.addEventListener('drop', (e) => {
+  e.preventDefault(); uploadZone.classList.remove('dragover');
+  if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', (e) => { if (e.target.files[0]) loadFile(e.target.files[0]); });
+document.addEventListener('paste', (e) => {
+  for (const item of (e.clipboardData?.items || [])) {
+    if (item.type.startsWith('image/')) { loadFile(item.getAsFile()); break; }
+  }
+});
+
+function loadFile(file) {
+  if (!file?.type.startsWith('image/')) { setStatus('Please upload a PNG or JPG image.'); return; }
+  currentMediaType = file.type;
+  analysisData = null; metricsData = null;
+  selectedIssueIdx = -1;
+  $('exportBtn').disabled = true;
+  clearReport();
+
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    currentBase64 = ev.target.result.split(',')[1];
+    const img = new Image();
+    img.onload = () => {
+      currentImage = img;
+      const maxW = Math.min(900, window.innerWidth - 80);
+      const scale = Math.min(1, maxW / img.width);
+      $('canvas').width = Math.round(img.width * scale);
+      $('canvas').height = Math.round(img.height * scale);
+      redraw();
+      uploadZone.style.display = 'none';
+      $('canvasSection').classList.add('visible');
+      $('analyzeBtn').disabled = false;
+      setPipelineStep('upload', 'done');
+      setStatus('Ready to analyze.');
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+$('changeImage').addEventListener('click', () => fileInput.click());
+$('resetView').addEventListener('click', () => { selectedIssueIdx = -1; redraw(); renderIssueList(); });
+
+// --- Pipeline UI ---
+function setPipelineStep(step, state) {
+  $('pipeline').classList.add('visible');
+  $('pipeline').querySelectorAll('.pipe-step').forEach(el => {
+    if (el.dataset.step === step) el.className = 'pipe-step ' + state;
+    else if (state === 'active') {
+      const order = ['upload','features','ai','rules','score','heatmap','report'];
+      if (order.indexOf(el.dataset.step) < order.indexOf(step)) el.className = 'pipe-step done';
+    }
+  });
+}
+function resetPipeline() {
+  $('pipeline').querySelectorAll('.pipe-step').forEach(el => el.className = 'pipe-step');
+}
+
+// ============================================================
+// SECTION 10 — Deterministic Feature Extraction Algorithms
+// ============================================================
+
+function extractFeaturesAsync(image) {
+  return new Promise((resolve, reject) => {
+    const ac = $('analysisCanvas');
+    const maxDim = 400;
+    const scale = Math.min(1, maxDim / Math.max(image.width, image.height));
+    ac.width = Math.round(image.width * scale);
+    ac.height = Math.round(image.height * scale);
+    const actx = ac.getContext('2d', { willReadFrequently: true });
+    actx.drawImage(image, 0, 0, ac.width, ac.height);
+    const imgData = actx.getImageData(0, 0, ac.width, ac.height);
+    
+    try {
+      const w = new Worker('worker.js');
+      w.onmessage = (e) => {
+        if (e.data.success) resolve(e.data.features);
+        else resolve(extractFeaturesWorker(imgData, imgData.width, imgData.height));
+        w.terminate();
+      };
+      w.onerror = (e) => {
+        w.terminate();
+        resolve(extractFeaturesWorker(imgData, imgData.width, imgData.height));
+      };
+      w.postMessage({ id: 1, imageData: imgData, width: imgData.width, height: imgData.height });
+    } catch (err) {
+      resolve(extractFeaturesWorker(imgData, imgData.width, imgData.height));
+    }
+  });
+}
+
+// ============================================================
+// SECTION 9.4 — Rule Engine (Deterministic Validator)
+// ============================================================
+
+function findCellBoundingBox(gridCells, filterFn, defaultBox) {
+  if (!gridCells || !gridCells.length) return defaultBox;
+  const matching = gridCells.filter(filterFn);
+  if (!matching.length) return defaultBox;
+
+  let minX = 100, minY = 100, maxX = 0, maxY = 0;
+  matching.forEach(c => {
+    if (c.x < minX) minX = c.x;
+    if (c.y < minY) minY = c.y;
+    if (c.x + 12.5 > maxX) maxX = c.x + 12.5;
+    if (c.y + 12.5 > maxY) maxY = c.y + 12.5;
+  });
+  return {
+    x: Math.max(2, Math.round(minX)),
+    y: Math.max(2, Math.round(minY)),
+    w: Math.max(10, Math.min(96, Math.round(maxX - minX))),
+    h: Math.max(10, Math.min(96, Math.round(maxY - minY)))
+  };
+}
+
+function applyRuleEngine(issues, features, aiElements) {
+  const validated = issues.map(it => ({ ...it, source: 'ai' }));
+  const cats = new Set(validated.map(i => i.category));
+
+  const alarmCount = aiElements?.alarm_indicators ?? Math.round(features.alarmDensity * 10000);
+  const navItems = aiElements?.navigation_items ?? 0;
+  const grid = features.gridCells || [];
+
+  // Rule: ISA-101 color discipline
+  if (features.distinctColors > THRESHOLDS.maxDistinctColors && !cats.has('color-overuse')) {
+    const box = findCellBoundingBox(grid, c => c.edgeRatio > 0.15 || c.alarmRatio > 0.01, { x: 22, y: 15, w: 56, h: 65 });
+    validated.push({
+      ...box, isGlobal: false,
+      category: 'color-overuse', severity: features.distinctColors > 10 ? 'high' : 'medium',
+      issue: `Screen uses ~${features.distinctColors} distinct color regions; ISA-101 recommends grey-dominant palettes with minimal accent colors.`,
+      recommendation: 'Reduce decorative color use. Reserve bright colors exclusively for abnormal/alarm states.',
+      standard_ref: 'ISA-101 §5 — Color philosophy',
+      source: 'rule-engine'
+    });
+  }
+
+  // Rule: EEMUA 191 alarm clutter
+  if ((alarmCount > THRESHOLDS.maxAlarmIndicators || features.alarmDensity > THRESHOLDS.maxAlarmDensity) && !cats.has('alarm-clutter')) {
+    const box = findCellBoundingBox(grid, c => c.alarmRatio > 0.01, { x: 35, y: 18, w: 30, h: 22 });
+    validated.push({
+      ...box, isGlobal: false,
+      category: 'alarm-clutter', severity: alarmCount > 8 ? 'high' : 'medium',
+      issue: `Detected ~${alarmCount} alarm indicators / high alarm pixel density (${(features.alarmDensity * 100).toFixed(1)}% of screen).`,
+      recommendation: 'Reduce simultaneous visible alarms. Implement alarm priority tiers and suppress nuisance alarms.',
+      standard_ref: 'EEMUA 191 / ISA-101 alarm philosophy',
+      source: 'rule-engine'
+    });
+  }
+
+  // Rule: NUREG-0700 information density
+  if (features.ids > THRESHOLDS.maxInfoDensity && !cats.has('information-density')) {
+    const box = findCellBoundingBox(grid, c => c.edgeRatio > 0.18, { x: 25, y: 18, w: 50, h: 55 });
+    validated.push({
+      ...box, isGlobal: false,
+      category: 'information-density', severity: features.ids > 0.5 ? 'high' : 'medium',
+      issue: `Information density score (${features.ids.toFixed(2)}) exceeds NUREG-0700 recommended limits for a single display.`,
+      recommendation: 'Split into hierarchical displays (overview → unit → detail). Group related data and remove non-critical tags.',
+      standard_ref: 'NUREG-0700 §8 — Information density',
+      source: 'rule-engine'
+    });
+  }
+
+  // Rule: Contrast legibility
+  if (features.minContrastRatio < THRESHOLDS.minContrastRatio && !cats.has('contrast-legibility')) {
+    const box = findCellBoundingBox(grid, c => c.hasDetail && c.cr < 4.5, { x: 36, y: 32, w: 28, h: 22 });
+    validated.push({
+      ...box, isGlobal: false,
+      category: 'contrast-legibility', severity: features.minContrastRatio < 3 ? 'high' : 'medium',
+      issue: `Minimum sampled contrast ratio is ${features.minContrastRatio}:1 (threshold: ${THRESHOLDS.minContrastRatio}:1). Text may be illegible at operator viewing distance.`,
+      recommendation: 'Increase foreground/background contrast. Use larger fonts for critical values.',
+      standard_ref: 'NUREG-0700 §4 — Readability',
+      source: 'rule-engine'
+    });
+  }
+
+  // Rule: Navigation clutter
+  if (navItems > 12 && !cats.has('navigation-clutter')) {
+    validated.push({
+      x: 20, y: 70, w: 60, h: 20, isGlobal: false,
+      category: 'navigation-clutter', severity: 'medium',
+      issue: `${navItems} navigation elements detected — exceeds recommended hierarchical navigation depth.`,
+      recommendation: 'Consolidate navigation into consistent overview/unit/detail levels per ISA-101.',
+      standard_ref: 'ISA-101 §6 — Navigation hierarchy',
+      source: 'rule-engine'
+    });
+  }
+
+  // Escalate AI severities when metrics confirm
+  return validated.map(it => {
+    let sev = it.severity;
+    if (it.category === 'alarm-clutter' && features.alarmDensity > THRESHOLDS.maxAlarmDensity && sev === 'medium') sev = 'high';
+    if (it.category === 'color-overuse' && features.colorEntropy > THRESHOLDS.maxColorEntropy && sev === 'low') sev = 'medium';
+    if (it.category === 'contrast-legibility' && features.minContrastRatio < 3 && sev !== 'high') sev = 'high';
+    return { ...it, severity: sev };
+  });
+}
+
+// --- Canvas rendering ---
+const canvas = $('canvas');
+const ctx = canvas.getContext('2d');
+
+function severityColor(sev) {
+  return { high: '#e2504a', medium: '#f0a500', low: '#3fb8a6' }[sev] || '#8b949e';
+}
+function severityAlpha(sev) {
+  return { high: 0.80, medium: 0.65, low: 0.45 }[sev] || 0.55;
+}
+function hexToRgba(hex, a) {
+  return `rgba(${parseInt(hex.slice(1,3),16)},${parseInt(hex.slice(3,5),16)},${parseInt(hex.slice(5,7),16)},${a})`;
+}
+
+function getFilteredIssues() {
+  if (!analysisData) return [];
+  return analysisData.issues.filter(it => {
+    if (activeCategory !== 'all' && it.category !== activeCategory) return false;
+    if (activeSeverity !== 'all' && it.severity !== activeSeverity) return false;
+    return true;
+  }).map(it => ({ ...it, origIdx: analysisData.issues.indexOf(it) }));
+}
+
+function redraw() {
+  if (!currentImage) return;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(currentImage, 0, 0, canvas.width, canvas.height);
+  if (!analysisData) return;
+
+  const issues = getFilteredIssues();
+  console.log('[redraw] Issues to render:', issues.length, issues.map(i => ({x:i.x,y:i.y,w:i.w,h:i.h,cat:i.category,sev:i.severity,isGlobal:i.isGlobal})));
+
+  if (showHeatmap) {
+    if (heatmapMode === 'thermal' || heatmapMode === 'hybrid') {
+      renderThermalSaliencyMap(issues);
+    } else if (heatmapMode === 'grid') {
+      renderGridDensityMap();
+    }
+  }
+
+  // Render bounding boxes and callouts for localized findings
+  issues.forEach(it => {
+    const isGlobal = !!it.isGlobal || (it.w === 100 && it.h === 100);
+    const color = severityColor(it.severity);
+    const isSel = it.origIdx === selectedIssueIdx;
+    const isHov = it.origIdx === hoveredIssueIdx;
+
+    if (isGlobal) {
+      if (isSel || isHov || showBoxes) {
+        ctx.save();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = (isSel || isHov) ? 4 : 2;
+        ctx.setLineDash((isSel || isHov) ? [] : [6, 4]);
+        ctx.strokeRect(3, 3, canvas.width - 6, canvas.height - 6);
+        ctx.restore();
+      }
+      return;
+    }
+
+    const x = (it.x / 100) * canvas.width;
+    const y = (it.y / 100) * canvas.height;
+    const w = (it.w / 100) * canvas.width;
+    const h = (it.h / 100) * canvas.height;
+
+    // Solid mode rendering
+    if (showHeatmap && heatmapMode === 'solid') {
+      ctx.save();
+      const a = severityAlpha(it.severity);
+      const baseAlpha = (isSel || isHov) ? Math.min(1, a + 0.3) : a;
+      ctx.fillStyle = hexToRgba(color, baseAlpha * (heatmapOpacity * 0.5));
+      ctx.strokeStyle = hexToRgba(color, baseAlpha * 0.85);
+      ctx.lineWidth = (isSel || isHov) ? 2.5 : 1;
+      ctx.beginPath();
+      if (typeof ctx.roundRect === 'function') ctx.roundRect(x, y, w, h, 4);
+      else ctx.rect(x, y, w, h);
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Bounding Box stroke in Hybrid / Boxes mode
+    if (showBoxes || isSel || isHov) {
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = (isSel || isHov) ? 3 : 1.5;
+      ctx.setLineDash((isSel || isHov) ? [] : [5, 3]);
+      ctx.strokeRect(x, y, w, h);
+      ctx.restore();
+    }
+
+    // Floating callout badge when selected or hovered
+    if (isSel || isHov) {
+      drawIssueCalloutPin(it, x, y, w, h, color);
+    }
+  });
+}
+
+function renderThermalSaliencyMap(issues) {
+  const offCanvas = document.createElement('canvas');
+  offCanvas.width = canvas.width;
+  offCanvas.height = canvas.height;
+  const offCtx = offCanvas.getContext('2d');
+
+  // A) Density from Grid Cells (Feature Extraction)
+  if (metricsData && metricsData.gridCells) {
+    metricsData.gridCells.forEach(cell => {
+      const cx = (cell.x / 100 + 0.0625) * canvas.width;
+      const cy = (cell.y / 100 + 0.0625) * canvas.height;
+      const radius = (canvas.width / 8) * 1.1;
+
+      let cellWeight = 0;
+      if (cell.cr < 4.5) cellWeight += Math.min(1, (4.5 - cell.cr) / 2);
+      if (cell.edgeRatio > 0.18) cellWeight += Math.min(1, cell.edgeRatio * 2.5);
+      if (cell.alarmRatio > 0.02) cellWeight += Math.min(1, cell.alarmRatio * 12);
+
+      if (cellWeight > 0.1) {
+        const color = cellWeight > 0.5 ? '#e2504a' : cellWeight > 0.25 ? '#f0a500' : '#3fb8a6';
+        const grad = offCtx.createRadialGradient(cx, cy, 0, cx, cy, radius);
+        grad.addColorStop(0, hexToRgba(color, cellWeight * 0.45));
+        grad.addColorStop(0.5, hexToRgba(color, cellWeight * 0.2));
+        grad.addColorStop(1, 'rgba(0,0,0,0)');
+        offCtx.fillStyle = grad;
+        offCtx.beginPath();
+        offCtx.arc(cx, cy, radius, 0, Math.PI * 2);
+        offCtx.fill();
+      }
+    });
+  }
+
+  // B) Density from Localized Issues
+  issues.forEach(it => {
+    if (it.isGlobal || (it.w >= 85 && it.h >= 50) || (it.w === 100 && it.h === 100)) return;
+
+    const x = (it.x / 100) * canvas.width;
+    const y = (it.y / 100) * canvas.height;
+    const w = (it.w / 100) * canvas.width;
+    const h = (it.h / 100) * canvas.height;
+    const cx = x + w / 2;
+    const cy = y + h / 2;
+    const rx = Math.max(16, w / 2);
+    const ry = Math.max(16, h / 2);
+
+    const isSel = it.origIdx === selectedIssueIdx;
+    const color = severityColor(it.severity);
+    const weight = it.severity === 'high' ? 0.9 : it.severity === 'medium' ? 0.7 : 0.45;
+    const alpha = isSel ? 1.0 : weight;
+
+    offCtx.save();
+    offCtx.translate(cx, cy);
+    const radius = Math.max(rx, ry, 18);
+    offCtx.scale(rx / radius, ry / radius);
+    const grad = offCtx.createRadialGradient(0, 0, 0, 0, 0, radius * 1.3);
+    grad.addColorStop(0, hexToRgba(color, alpha));
+    grad.addColorStop(0.35, hexToRgba(color, alpha * 0.75));
+    grad.addColorStop(0.7, hexToRgba(color, alpha * 0.3));
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    offCtx.fillStyle = grad;
+    offCtx.beginPath();
+    offCtx.arc(0, 0, radius * 1.3, 0, Math.PI * 2);
+    offCtx.fill();
+    offCtx.restore();
+  });
+
+  // Apply Gaussian blur filter
+  const blurCanvas = document.createElement('canvas');
+  blurCanvas.width = canvas.width;
+  blurCanvas.height = canvas.height;
+  const blurCtx = blurCanvas.getContext('2d');
+
+  if (typeof blurCtx.filter !== 'undefined') {
+    blurCtx.filter = 'blur(18px)';
+    blurCtx.drawImage(offCanvas, 0, 0);
+  } else {
+    blurCtx.drawImage(offCanvas, 0, 0);
+  }
+
+  // Blended composite onto main canvas
+  ctx.save();
+  ctx.globalAlpha = heatmapOpacity;
+  ctx.drawImage(blurCanvas, 0, 0);
+  ctx.restore();
+}
+
+function renderGridDensityMap() {
+  if (!metricsData || !metricsData.gridCells) return;
+  ctx.save();
+  ctx.globalAlpha = heatmapOpacity;
+  const cellW = canvas.width / 8;
+  const cellH = canvas.height / 8;
+
+  metricsData.gridCells.forEach(cell => {
+    const x = (cell.x / 100) * canvas.width;
+    const y = (cell.y / 100) * canvas.height;
+
+    let cellWeight = 0;
+    if (cell.cr < 4.5) cellWeight += (4.5 - cell.cr) / 4.5;
+    if (cell.edgeRatio) cellWeight += cell.edgeRatio * 2;
+
+    const color = cellWeight > 0.4 ? '#e2504a' : cellWeight > 0.2 ? '#f0a500' : '#3fb8a6';
+    ctx.fillStyle = hexToRgba(color, Math.min(0.7, cellWeight * 0.6 + 0.1));
+    ctx.fillRect(x, y, cellW, cellH);
+    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    ctx.strokeRect(x, y, cellW, cellH);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '9px monospace';
+    ctx.fillText(`${cell.cr}:1`, x + 4, y + 14);
+  });
+  ctx.restore();
+}
+
+function drawIssueCalloutPin(it, x, y, w, h, color) {
+  ctx.save();
+  const labelText = `[${it.severity.toUpperCase()}] ${CATEGORIES[it.category] || it.category}`;
+  ctx.font = '10px monospace';
+  const textWidth = ctx.measureText(labelText).width;
+  const badgeW = textWidth + 14;
+  const badgeH = 20;
+
+  let badgeX = x;
+  let badgeY = y - badgeH - 6;
+  if (badgeY < 4) badgeY = y + 4;
+  if (badgeX + badgeW > canvas.width - 4) badgeX = canvas.width - badgeW - 4;
+
+  ctx.fillStyle = 'rgba(15, 18, 22, 0.9)';
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  if (typeof ctx.roundRect === 'function') ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 4);
+  else ctx.rect(badgeX, badgeY, badgeW, badgeH);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = color;
+  ctx.fillText(labelText, badgeX + 7, badgeY + 14);
+  ctx.restore();
+}
+
+// --- Canvas interaction ---
+const canvasWrap = $('canvasWrap');
+const tooltip = $('tooltip');
+
+canvasWrap.addEventListener('mousemove', (e) => {
+  if (!analysisData) {
+    tooltip.style.display = 'none';
+    if (hoveredIssueIdx !== -1) { hoveredIssueIdx = -1; redraw(); }
+    return;
+  }
+  const rect = canvas.getBoundingClientRect();
+  const mx = (e.clientX - rect.left) * (canvas.width / rect.width);
+  const my = (e.clientY - rect.top) * (canvas.height / rect.height);
+
+  // Mode: Grid Density Hover Handler
+  if (showHeatmap && heatmapMode === 'grid' && metricsData && metricsData.gridCells) {
+    const cellW = canvas.width / 8;
+    const cellH = canvas.height / 8;
+    const gx = Math.min(7, Math.max(0, Math.floor(mx / cellW)));
+    const gy = Math.min(7, Math.max(0, Math.floor(my / cellH)));
+    const cellIdx = gy * 8 + gx;
+    const cell = metricsData.gridCells[cellIdx];
+
+    if (cell) {
+      const statusText = cell.cr < 4.5 ? '<span style="color:var(--red)">FAIL (CR < 4.5:1)</span>' : '<span style="color:var(--teal)">PASS</span>';
+      tooltip.innerHTML = `<div class="tt-cat medium">GRID CELL (Row ${gy + 1}, Col ${gx + 1})</div>Contrast Ratio: <strong>${cell.cr}:1</strong> &middot; Edges: ${(cell.edgeRatio * 100).toFixed(0)}%<br>Readability Status: ${statusText}`;
+      tooltip.style.display = 'block';
+
+      const wrapRect = canvasWrap.getBoundingClientRect();
+      let ttLeft = e.clientX - wrapRect.left + 14;
+      let ttTop = e.clientY - wrapRect.top + 14;
+      if (ttLeft + 240 > wrapRect.width) ttLeft = e.clientX - wrapRect.left - 245;
+      if (ttTop + 80 > wrapRect.height) ttTop = e.clientY - wrapRect.top - 70;
+
+      tooltip.style.left = Math.max(8, ttLeft) + 'px';
+      tooltip.style.top = Math.max(8, ttTop) + 'px';
+      return;
+    }
+  }
+
+  // Localized Issue Hover Handler
+  let smallestArea = Infinity;
+  let hit = -1;
+  const issues = getFilteredIssues();
+
+  issues.forEach((it, idx) => {
+    const isFullScreen = !!it.isGlobal || (it.w === 100 && it.h === 100);
+    const x = (it.x / 100) * canvas.width;
+    const y = (it.y / 100) * canvas.height;
+    const w = (it.w / 100) * canvas.width;
+    const h = (it.h / 100) * canvas.height;
+
+    if (mx >= x && mx <= x + w && my >= y && my <= y + h) {
+      const area = isFullScreen ? 999999 : (w * h);
+      if (area < smallestArea) {
+        smallestArea = area;
+        hit = idx;
+      }
+    }
+  });
+
+  if (hit >= 0) {
+    const it = issues[hit];
+    tooltip.innerHTML = `<div class="tt-cat ${it.severity}">${CATEGORIES[it.category] || it.category}</div>${it.issue}`;
+    tooltip.style.display = 'block';
+
+    const wrapRect = canvasWrap.getBoundingClientRect();
+    let ttLeft = e.clientX - wrapRect.left + 14;
+    let ttTop = e.clientY - wrapRect.top + 14;
+    if (ttLeft + 240 > wrapRect.width) ttLeft = e.clientX - wrapRect.left - 245;
+    if (ttTop + 80 > wrapRect.height) ttTop = e.clientY - wrapRect.top - 70;
+
+    tooltip.style.left = Math.max(8, ttLeft) + 'px';
+    tooltip.style.top = Math.max(8, ttTop) + 'px';
+
+    if (hoveredIssueIdx !== it.origIdx) {
+      hoveredIssueIdx = it.origIdx;
+      redraw();
+    }
+  } else {
+    tooltip.style.display = 'none';
+    if (hoveredIssueIdx !== -1) {
+      hoveredIssueIdx = -1;
+      redraw();
+    }
+  }
+});
+
+canvasWrap.addEventListener('mouseleave', () => {
+  tooltip.style.display = 'none';
+  if (hoveredIssueIdx !== -1) {
+    hoveredIssueIdx = -1;
+    redraw();
+  }
+});
+
+canvasWrap.addEventListener('click', (e) => {
+  if (!analysisData) return;
+  const rect = canvas.getBoundingClientRect();
+  const mx = (e.clientX - rect.left) * (canvas.width / rect.width);
+  const my = (e.clientY - rect.top) * (canvas.height / rect.height);
+  let smallestArea = Infinity;
+  let hit = -1;
+  const issues = getFilteredIssues();
+
+  issues.forEach((it, idx) => {
+    const isFullScreen = !!it.isGlobal || (it.w === 100 && it.h === 100);
+    const x = (it.x / 100) * canvas.width;
+    const y = (it.y / 100) * canvas.height;
+    const w = (it.w / 100) * canvas.width;
+    const h = (it.h / 100) * canvas.height;
+
+    if (mx >= x && mx <= x + w && my >= y && my <= y + h) {
+      const area = isFullScreen ? 999999 : (w * h);
+      if (area < smallestArea) {
+        smallestArea = area;
+        hit = idx;
+      }
+    }
+  });
+
+  if (hit >= 0) {
+    selectIssue(issues[hit].origIdx);
+  }
+});
+
+function selectIssue(idx) {
+  selectedIssueIdx = idx;
+  redraw(); renderIssueList();
+  const el = $('issueList').querySelector(`[data-idx="${idx}"]`);
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+['toggleHeatmap', 'toggleBoxes'].forEach(id => {
+  $(id).addEventListener('click', () => {
+    const btn = $(id);
+    const isCurrentlyOn = btn.dataset.on === 'true';
+    const nextState = !isCurrentlyOn;
+    btn.dataset.on = nextState ? 'true' : 'false';
+    btn.classList.toggle('active', nextState);
+    if (id === 'toggleHeatmap') {
+      showHeatmap = nextState;
+      btn.textContent = showHeatmap ? 'Heatmap On' : 'Heatmap Off';
+    } else {
+      showBoxes = nextState;
+      btn.textContent = showBoxes ? 'Bounding Boxes' : 'Boxes Off';
+    }
+    redraw();
+  });
+});
+
+// Initialize toggle button states from data-on attribute
+['toggleHeatmap', 'toggleBoxes'].forEach(id => {
+  const btn = $(id);
+  const on = btn.dataset.on === 'true';
+  btn.classList.toggle('active', on);
+  if (id === 'toggleHeatmap') {
+    showHeatmap = on;
+    btn.textContent = on ? 'Heatmap On' : 'Heatmap Off';
+  } else {
+    showBoxes = on;
+    btn.textContent = on ? 'Bounding Boxes' : 'Boxes Off';
+  }
+});
+
+// Heatmap mode toggle
+$('heatmapMode').addEventListener('click', () => {
+  const btn = $('heatmapMode');
+  const modes = ['thermal', 'solid', 'hybrid', 'grid'];
+  const modeLabels = { thermal: 'Mode: Thermal', solid: 'Mode: Solid Boxes', hybrid: 'Mode: Hybrid', grid: 'Mode: Grid Density' };
+  const current = btn.dataset.mode || 'thermal';
+  const next = modes[(modes.indexOf(current) + 1) % modes.length];
+  btn.dataset.mode = next;
+  heatmapMode = next;
+  btn.textContent = modeLabels[next] || `Mode: ${next}`;
+  redraw();
+});
+
+// Heatmap opacity slider listener
+const opacitySliderEl = $('heatmapOpacitySlider');
+if (opacitySliderEl) {
+  opacitySliderEl.addEventListener('input', (e) => {
+    heatmapOpacity = parseInt(e.target.value, 10) / 100;
+    $('opacityVal').textContent = e.target.value + '%';
+    redraw();
+  });
+}
+
+$('filterBar').querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    $('filterBar').querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeSeverity = btn.dataset.sev;
+    selectedIssueIdx = -1;
+    redraw(); renderIssueList();
+  });
+});
+
+// --- Report rendering ---
+function scoreClass(val, invert) {
+  const v = invert ? 100 - val : val;
+  return v >= 70 ? 'good' : v >= 40 ? 'mid' : 'bad';
+}
+
+function renderReport(data, features) {
+  analysisData = data;
+  metricsData = features;
+  $('sidebarEmpty').style.display = 'none';
+  $('scorePanel').classList.add('visible');
+  $('categoryBar').classList.add('visible');
+  $('filterBar').classList.add('visible');
+  $('exportBtn').disabled = false;
+  $('saveHistoryBtn').disabled = false;
+
+  const cVal = $('complianceVal');
+  cVal.textContent = features.complianceScore;
+  cVal.className = 'val ' + scoreClass(features.complianceScore, false);
+
+  const rVal = $('riskVal');
+  rVal.textContent = features.riskScore;
+  rVal.className = 'val ' + scoreClass(features.riskScore, true);
+
+  const cog = features.cognitiveLoad;
+  $('cognitiveLabel').textContent = cog < 35 ? 'Low' : cog < 65 ? 'Moderate' : 'High';
+  const cogFill = $('cognitiveFill');
+  cogFill.style.width = cog + '%';
+  cogFill.style.background = cog < 35 ? 'var(--teal)' : cog < 65 ? 'var(--amber)' : 'var(--red)';
+
+  $('metricsGrid').innerHTML = [
+    { label: 'Info Density (IDS)', val: features.ids, warn: features.ids > THRESHOLDS.maxInfoDensity * 0.7, bad: features.ids > THRESHOLDS.maxInfoDensity,
+      desc: `Measures overall visual clutter and UI crowding.\n\nA value of ${features.ids} translates to a ${features.ids > THRESHOLDS.maxInfoDensity ? 'high' : features.ids > THRESHOLDS.maxInfoDensity * 0.7 ? 'medium' : 'low'} risk of cognitive overload.` },
+    
+    { label: 'Alarm Density (AD)', val: (features.alarmDensity * 100).toFixed(1) + '%', warn: features.alarmDensity > THRESHOLDS.maxAlarmDensity * 0.7, bad: features.alarmDensity > THRESHOLDS.maxAlarmDensity,
+      desc: `Measures the screen area occupied by red/yellow alarm states.\n\nA value of ${(features.alarmDensity * 100).toFixed(1)}% translates to a ${features.alarmDensity > THRESHOLDS.maxAlarmDensity ? 'high' : features.alarmDensity > THRESHOLDS.maxAlarmDensity * 0.7 ? 'medium' : 'low'} risk of alarm fatigue.` },
+    
+    { label: 'Color Entropy (CE)', val: features.colorEntropy, warn: features.colorEntropy > THRESHOLDS.maxColorEntropy * 0.8, bad: features.colorEntropy > THRESHOLDS.maxColorEntropy,
+      desc: `Measures the chaos and number of distinct colors used.\n\nA value of ${features.colorEntropy} translates to a ${features.colorEntropy > THRESHOLDS.maxColorEntropy ? 'high' : features.colorEntropy > THRESHOLDS.maxColorEntropy * 0.8 ? 'medium' : 'low'} risk of color overuse and distraction.` },
+    
+    { label: 'Min Contrast (CR)', val: features.minContrastRatio + ':1', warn: features.minContrastRatio < THRESHOLDS.minContrastRatio * 1.2, bad: features.minContrastRatio < THRESHOLDS.minContrastRatio,
+      desc: `Measures the minimum readability between foreground elements and their background.\n\nA value of ${features.minContrastRatio}:1 translates to a ${features.minContrastRatio < THRESHOLDS.minContrastRatio ? 'high' : features.minContrastRatio < THRESHOLDS.minContrastRatio * 1.2 ? 'medium' : 'low'} risk of text illegibility.` }
+  ].map(m => `<div class="metric${m.bad ? ' bad' : m.warn ? ' warn' : ''}" data-tooltip="${m.desc}"><div class="mv">${m.val}</div><div class="ml">${m.label}</div></div>`).join('');
+
+  const counts = { high: 0, medium: 0, low: 0 };
+  const catCounts = {};
+  data.issues.forEach(it => {
+    counts[it.severity] = (counts[it.severity] || 0) + 1;
+    catCounts[it.category] = (catCounts[it.category] || 0) + 1;
+  });
+
+  $('severityCounts').innerHTML = ['high','medium','low'].map(s =>
+    `<div class="sev-badge ${s}"><div class="n">${counts[s]||0}</div><div class="l">${s}</div></div>`
+  ).join('');
+
+  $('categoryBar').innerHTML = `<button class="cat-pill active" data-cat="all">All (${data.issues.length})</button>` +
+    Object.entries(catCounts).map(([cat, n]) =>
+      `<button class="cat-pill" data-cat="${cat}">${CATEGORIES[cat]||cat} (${n})</button>`
+    ).join('');
+
+  $('categoryBar').querySelectorAll('.cat-pill').forEach(pill => {
+    pill.addEventListener('click', () => {
+      $('categoryBar').querySelectorAll('.cat-pill').forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+      activeCategory = pill.dataset.cat;
+      selectedIssueIdx = -1;
+      redraw(); renderIssueList();
+    });
+  });
+
+  renderIssueList();
+  redraw();
+}
+
+function renderIssueList() {
+  if (!analysisData) return;
+  const filtered = analysisData.issues.filter(it => {
+    if (activeCategory !== 'all' && it.category !== activeCategory) return false;
+    if (activeSeverity !== 'all' && it.severity !== activeSeverity) return false;
+    return true;
+  });
+
+  console.log('[renderIssueList] Filtered issues:', filtered.map(i => ({x: i.x, y: i.y, w: i.w, h: i.h, cat: i.category, sev: i.severity})));
+
+  $('issueList').innerHTML = filtered.map(it => {
+    const idx = analysisData.issues.indexOf(it);
+    return `
+      <div class="issue ${it.severity}${idx === selectedIssueIdx ? ' selected' : ''}${it.source === 'rule-engine' ? ' rule-added' : ''}" data-idx="${idx}">
+        <div class="issue-top">
+          <span class="cat">${CATEGORIES[it.category]||it.category}</span>
+          <span class="sev ${it.severity}">${it.severity}</span>
+        </div>
+        <p>${esc(it.issue)}</p>
+        <div class="rec">Fix: ${esc(it.recommendation)}</div>
+        ${it.standard_ref ? `<div class="ref">${esc(it.standard_ref)}</div>` : ''}
+        ${it.source === 'rule-engine' ? '<span class="tag">Rule engine</span>' : ''}
+      </div>`;
+  }).join('');
+
+  $('issueList').querySelectorAll('.issue').forEach(el => {
+    el.addEventListener('click', () => selectIssue(+el.dataset.idx));
+  });
+}
+
+function clearReport() {
+  $('sidebarEmpty').style.display = 'flex';
+  $('scorePanel').classList.remove('visible');
+  $('categoryBar').classList.remove('visible');
+  $('filterBar').classList.remove('visible');
+  $('issueList').innerHTML = '';
+  $('categoryBar').innerHTML = '';
+  resetPipeline();
+}
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+function setStatus(msg, loading = false) {
+  $('statusText').textContent = msg;
+  $('spinner').classList.toggle('active', loading);
+}
+function clamp(v, min, max) { return Math.max(min, Math.min(max, Number(v)||0)); }
+
+function normalizeIssue(it) {
+  return {
+    x: clamp(it.x, 0, 99), y: clamp(it.y, 0, 99),
+    w: clamp(it.w, 1, 100 - it.x), h: clamp(it.h, 1, 100 - it.y),
+    category: it.category || 'information-density',
+    severity: ['high','medium','low'].includes(it.severity) ? it.severity : 'medium',
+    issue: it.issue || 'Unspecified issue',
+    recommendation: it.recommendation || 'Review with human-factors specialist',
+    standard_ref: it.standard_ref || '',
+    source: 'ai'
+  };
+}
+
+// ============================================================
+// SECTION 11 — AI Architecture + Full Pipeline
+// ============================================================
+
+$('analyzeBtn').addEventListener('click', runAnalysis);
+
+async function runAnalysis() {
+  if (!currentBase64 || !currentImage) return;
+  const apiKey = apiKeyInput.value.trim() || localStorage.getItem('hmi_gemini_key') || DEFAULT_API_KEY;
+  if (!apiKey) { setStatus('Set your Gemini API key in Settings first.'); $('modalBackdrop').classList.add('open'); return; }
+
+  $('analyzeBtn').disabled = true;
+  $('exportBtn').disabled = true;
+  resetPipeline();
+
+  // Step 1: Feature extraction (deterministic)
+  setPipelineStep('features', 'active');
+  setStatus('Extracting visual features (IDS, AD, CE, CR)...', true);
+  await tick();
+  const features = await extractFeaturesAsync(currentImage);
+  setPipelineStep('features', 'done');
+
+  // Step 2: AI reasoning
+  setPipelineStep('ai', 'active');
+  setStatus('Running AI visual reasoning (Gemini 3.1 Flash Lite)...', true);
+
+  const prompt = `You are Vantage, an expert human-factors compliance auditor applying ISA-101 and NUREG-0700 to an industrial HMI/SCADA screenshot.
+
+First, identify UI elements: count data_elements (numeric indicators, tags, values), alarm_indicators (red/yellow alarm banners, flashing indicators, alarm icons), navigation_items (tabs, menu buttons, nav bars), and distinct_colors (non-grey accent colors in active use).
+
+Then find visual miscompliances in these categories ONLY:
+1. color-overuse — rainbow screens, decorative color, failure of grayscale-normal / color-abnormal convention (ISA-101)
+2. alarm-clutter — excessive simultaneous alarms, alarm banners dominating, poor prioritization (EEMUA 191 / ISA-101)
+3. information-density — overcrowded displays, too many values, poor grouping (NUREG-0700)
+4. navigation-clutter — excessive tabs/menus, inconsistent navigation, hidden critical functions (ISA-101)
+5. contrast-legibility — poor text/background contrast, small critical fonts (NUREG-0700)
+
+Deterministic pre-analysis metrics for this screen:
+- Information Density (IDS): ${features.ids}
+- Alarm Density (AD): ${(features.alarmDensity * 100).toFixed(2)}%
+- Color Entropy (CE): ${features.colorEntropy}
+- Distinct colors detected: ${features.distinctColors}
+- Min Contrast Ratio (CR): ${features.minContrastRatio}:1
+
+Use these metrics to inform severity. For each issue return:
+- x, y, w, h: bounding box as PERCENTAGES (0-100), top-left origin
+- category: exact slug from the five categories
+- severity: "high", "medium", or "low"
+- issue: one specific sentence about what you see
+- recommendation: one actionable fix
+- standard_ref: ISA-101 or NUREG-0700 reference
+
+Find 4-10 issues. Be specific to THIS screen.`;
+
+  const schema = {
+    type: "OBJECT",
+    properties: {
+      detected_elements: {
+        type: "OBJECT",
+        properties: {
+          data_elements: { type: "NUMBER" },
+          alarm_indicators: { type: "NUMBER" },
+          navigation_items: { type: "NUMBER" },
+          distinct_colors: { type: "NUMBER" }
+        }
+      },
+      issues: {
+        type: "ARRAY",
+        items: {
+          type: "OBJECT",
+          properties: {
+            x: { type: "NUMBER" }, y: { type: "NUMBER" },
+            w: { type: "NUMBER" }, h: { type: "NUMBER" },
+            category: { type: "STRING" }, severity: { type: "STRING" },
+            issue: { type: "STRING" }, recommendation: { type: "STRING" },
+            standard_ref: { type: "STRING" }
+          },
+          required: ["x","y","w","h","category","severity","issue","recommendation"]
+        }
+      }
+    },
+    required: ["detected_elements", "issues"]
+  };
+
+  try {
+    const response = await fetch(
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+        body: JSON.stringify({
+          contents: [{ parts: [
+            { text: prompt },
+            { inline_data: { mime_type: currentMediaType, data: currentBase64 } }
+          ]}],
+          generationConfig: { responseMimeType: "application/json", responseSchema: schema }
+        })
+      }
+    );
+
+    const data = await response.json();
+    if (data.error) throw new Error(data.error.message || 'API error');
+    const textBlock = data.candidates?.[0]?.content?.parts?.find(p => p.text);
+    if (!textBlock) throw new Error('No response from model');
+
+    const parsed = JSON.parse(textBlock.text);
+    if (!parsed.issues?.length) throw new Error('No issues returned');
+    setPipelineStep('ai', 'done');
+
+    // Step 3: Rule engine
+    setPipelineStep('rules', 'active');
+    setStatus('Applying ISA-101 / NUREG-0700 rule engine...', true);
+    await tick();
+    const aiIssues = parsed.issues.map(normalizeIssue);
+    const validatedIssues = applyRuleEngine(aiIssues, features, parsed.detected_elements);
+    setPipelineStep('rules', 'done');
+
+    // Step 4: Risk scoring (already computed, blend with issue count)
+    setPipelineStep('score', 'active');
+    await tick();
+    const issuePenalty = validatedIssues.reduce((s, it) =>
+      s + ({ high: 3, medium: 1.5, low: 0.5 }[it.severity] || 0), 0);
+    features.riskScore = Math.round(Math.min(100, features.riskScore + issuePenalty));
+    features.complianceScore = Math.round(Math.max(0, 100 * (1 - features.riskScore / 100)));
+    features.cognitiveLoad = Math.round(Math.min(100, features.cognitiveLoad + validatedIssues.length * 3));
+    setPipelineStep('score', 'done');
+
+    // Step 5 & 6: Heatmap + Report
+    setPipelineStep('heatmap', 'active');
+    await tick();
+    setPipelineStep('heatmap', 'done');
+    setPipelineStep('report', 'active');
+
+    console.log('[runAnalysis] Final issues for report:', validatedIssues.map(i => ({x: i.x, y: i.y, w: i.w, h: i.h, cat: i.category, sev: i.severity})));
+
+    renderReport({ issues: validatedIssues, detected_elements: parsed.detected_elements }, features);
+    setPipelineStep('report', 'done');
+    setStatus(`Analysis complete — ${validatedIssues.length} finding(s) · Risk ${features.riskScore} · Compliance ${features.complianceScore}%`);
+  } catch (err) {
+    console.error(err);
+    setStatus('Analysis failed: ' + err.message);
+  } finally {
+    $('analyzeBtn').disabled = false;
+  }
+}
+
+function tick() { return new Promise(r => setTimeout(r, 300)); }
+
+// --- Export ---
+$('exportBtn').addEventListener('click', () => {
+  if (!analysisData || !metricsData) return;
+  const report = {
+    tool: 'Vantage',
+    version: '1.0-prototype',
+    generated: new Date().toISOString(),
+    team: ['Arshbir Singh', 'Ashman Das'],
+    institution: 'IIT Kanpur',
+    standards: ['ANSI/ISA-101.01-2015', 'NUREG-0700 Rev. 3', 'EEMUA 191'],
+    scores: {
+      compliance_percent: metricsData.complianceScore,
+      risk_score: metricsData.riskScore,
+      cognitive_load: metricsData.cognitiveLoad
+    },
+    metrics: {
+      information_density: metricsData.ids,
+      alarm_density: metricsData.alarmDensity,
+      color_entropy: metricsData.colorEntropy,
+      distinct_colors: metricsData.distinctColors,
+      min_contrast_ratio: metricsData.minContrastRatio,
+      raw_risk: metricsData.rawRisk
+    },
+    weights: WEIGHTS,
+    thresholds: THRESHOLDS,
+    detected_elements: analysisData.detected_elements || null,
+    issue_count: analysisData.issues.length,
+    issues: analysisData.issues
+  };
+  const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `vantage-report-${Date.now()}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  setStatus('Report exported.');
+});
+
+// --- Save to History ---
+$('saveHistoryBtn').addEventListener('click', () => {
+  if (!analysisData || !metricsData) return;
+  $('saveHistoryBackdrop').classList.add('open');
+});
+$('saveHistoryClose').addEventListener('click', () => {
+  $('saveHistoryBackdrop').classList.remove('open');
+});
+$('saveHistoryConfirm').addEventListener('click', async () => {
+  if (!analysisData || !metricsData) return;
+  const plantName = $('historyPlantName').value.trim() || 'Default Plant';
+  const screenName = $('historyScreenName').value.trim() || 'Default Screen';
+  const screenTag = $('historyScreenTag').value.trim() || 'SCR-001';
+  const screenType = $('historyScreenType').value;
+
+  try {
+    setStatus('Saving audit to IndexedDB history...', true);
+    // Find or create plant
+    const plants = await window.HMI_DB.getAllPlants();
+    let plant = plants.find(p => p.name.toLowerCase() === plantName.toLowerCase());
+    if (!plant) {
+      plant = await window.HMI_DB.addPlant({ name: plantName, location: 'Industrial Site', industry_type: 'General Industrial' });
+    }
+
+    // Find or create screen
+    const screens = await window.HMI_DB.getScreensByPlant(plant.id);
+    let screen = screens.find(s => s.tag.toLowerCase() === screenTag.toLowerCase() || s.name.toLowerCase() === screenName.toLowerCase());
+    if (!screen) {
+      screen = await window.HMI_DB.addScreen({ plant_id: plant.id, name: screenName, tag: screenTag, screen_type: screenType });
+    }
+
+    const imageHash = currentImage ? await window.HMI_DB.computeImageHash(currentImage) : '0'.repeat(64);
+
+    const countsBySev = { high: 0, medium: 0, low: 0 };
+    const countsByCat = {};
+    analysisData.issues.forEach(i => {
+      countsBySev[i.severity] = (countsBySev[i.severity] || 0) + 1;
+      countsByCat[i.category] = (countsByCat[i.category] || 0) + 1;
+    });
+
+    await window.HMI_DB.saveAnalysisRun({
+      plant_id: plant.id,
+      screen_id: screen.id,
+      timestamp: Date.now(),
+      image_hash: imageHash,
+      risk_score: metricsData.riskScore,
+      compliance_score: metricsData.complianceScore,
+      cognitive_load: metricsData.cognitiveLoad,
+      metrics_snapshot: metricsData,
+      issues_count_by_severity: countsBySev,
+      issues_count_by_category: countsByCat,
+      issues: analysisData.issues,
+      detected_elements: analysisData.detected_elements,
+      ai_model_version: 'Gemini 3.1 Flash Lite'
+    });
+
+    $('saveHistoryBackdrop').classList.remove('open');
+    setStatus('Audit saved to history! View trends in Historical Dashboard.');
+  } catch (err) {
+    console.error('Failed to save to history:', err);
+    setStatus('Failed to save to history: ' + err.message);
+  }
+});
+
+// --- Error Logger Integration ---
+const LOG_KEY = 'hmi_error_logs';
+const MAX_LOGS = 500;
+
+function logError(level, message, source, context, stack) {
+  try {
+    const logs = JSON.parse(localStorage.getItem(LOG_KEY) || '[]');
+    logs.push({
+      timestamp: Date.now(),
+      level,
+      message: String(message),
+      source: source || 'hmi',
+      context: context || {},
+      stack: stack || ''
+    });
+    localStorage.setItem(LOG_KEY, JSON.stringify(logs.slice(-MAX_LOGS)));
+  } catch (e) {
+    console.error('Failed to log error:', e);
+  }
+}
+
+window.ErrorLogger = {
+  error: (msg, src, ctx, stack) => logError('error', msg, src, ctx, stack),
+  warn: (msg, src, ctx) => logError('warn', msg, src, ctx),
+  info: (msg, src, ctx) => logError('info', msg, src, ctx),
+  debug: (msg, src, ctx) => logError('debug', msg, src, ctx)
+};
+
+// Global error handlers
+window.addEventListener('error', (e) => {
+  logError('error', e.message, 'window', { filename: e.filename, lineno: e.lineno, colno: e.colno }, e.error?.stack);
+});
+
+window.addEventListener('unhandledrejection', (e) => {
+  logError('error', e.reason?.message || 'Unhandled Promise Rejection', 'promise', {}, e.reason?.stack);
+});
+
+// Open error logs page on load removed to prevent popup blockers
+
+
+// Wrap critical functions with error logging
+const originalSetStatus = setStatus;
+setStatus = function(msg, loading) {
+  try { originalSetStatus(msg, loading); }
+  catch (e) { logError('error', 'setStatus failed: ' + e.message, 'setStatus', {}, e.stack); }
+};
+
+const originalRedraw = redraw;
+redraw = function() {
+  try { originalRedraw(); }
+  catch (e) { logError('error', 'redraw failed: ' + e.message, 'redraw', {}, e.stack); }
+};
+
+const originalRunAnalysis = runAnalysis;
+runAnalysis = async function() {
+  try { await originalRunAnalysis(); }
+  catch (e) { logError('error', 'runAnalysis failed: ' + e.message, 'runAnalysis', {}, e.stack); }
+};
+
+const originalExtractFeaturesAsync = extractFeaturesAsync;
+extractFeaturesAsync = async function(image) {
+  try { return await originalExtractFeaturesAsync(image); }
+  catch (e) { logError('error', 'extractFeaturesAsync failed: ' + e.message, 'extractFeaturesAsync', { width: image?.width, height: image?.height }, e.stack); throw e; }
+};
+
+const originalApplyRuleEngine = applyRuleEngine;
+applyRuleEngine = function(issues, features, aiElements) {
+  try { return originalApplyRuleEngine(issues, features, aiElements); }
+  catch (e) { logError('error', 'applyRuleEngine failed: ' + e.message, 'applyRuleEngine', {}, e.stack); throw e; }
+};
+
+logError('info', 'HMI Analyzer initialized', 'init', { userAgent: navigator.userAgent });
+
+window.addEventListener('DOMContentLoaded', () => {
+  if (window.parent && window.parent !== window) {
+    window.parent.postMessage({ type: 'HMI_READY' }, '*');
+    
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('modal') === '1') {
+      const header = document.querySelector('header');
+      if (header) header.style.display = 'none';
+      const layout = document.querySelector('.layout');
+      if (layout) layout.style.minHeight = '100vh';
+    }
+  }
+});
+
+window.addEventListener('message', (e) => {
+  if (e.data && e.data.type === 'LOAD_BATCH_ITEM') {
+    const { file, features, issues } = e.data;
+    
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      currentBase64 = ev.target.result.split(',')[1];
+      const img = new Image();
+      img.onload = () => {
+        currentImage = img;
+        const maxW = Math.min(900, window.innerWidth - 80);
+        const scale = Math.min(1, maxW / img.width);
+        $('canvas').width = Math.round(img.width * scale);
+        $('canvas').height = Math.round(img.height * scale);
+        
+        $('uploadZone').style.display = 'none';
+        $('canvasSection').classList.add('visible');
+        
+        renderReport({ issues: issues, detected_elements: [] }, features);
+        redraw();
+        
+        setPipelineStep('upload', 'done');
+        setPipelineStep('features', 'done');
+        setPipelineStep('ai', 'done');
+        setPipelineStep('rules', 'done');
+        setPipelineStep('score', 'done');
+        setPipelineStep('heatmap', 'done');
+        setPipelineStep('report', 'done');
+        setStatus(`Batch Item Loaded - ${issues.length} finding(s)`);
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+});
+</script>
+</body>
+</html>

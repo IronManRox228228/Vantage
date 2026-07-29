@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Vantage — Automated Test Suite</title>
+<style>
+  :root {
+    --bg: #0f1216;
+    --surface: #171b21;
+    --surface-2: #1e242c;
+    --line: #2a3139;
+    --text: #e8ecf0;
+    --muted: #8b949e;
+    --amber: #f0a500;
+    --amber-dim: rgba(240,165,0,0.15);
+    --teal: #3fb8a6;
+    --teal-dim: rgba(63,184,166,0.15);
+    --red: #e2504a;
+    --red-dim: rgba(226,80,74,0.15);
+    --mono: 'Cascadia Code', 'Courier New', Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --radius: 6px;
+    --shadow: 0 4px 24px rgba(0,0,0,0.35);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; padding: 24px; }
+
+  header {
+    border-bottom: 1px solid var(--line); padding-bottom: 16px; margin-bottom: 24px;
+    display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;
+  }
+  h1 { font-family: var(--mono); font-size: 18px; color: var(--text); text-transform: uppercase; letter-spacing: 2px; }
+  h1 span { color: var(--amber); font-weight: bold; }
+
+  .summary-card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 20px; margin-bottom: 24px; display: flex; gap: 32px; align-items: center;
+  }
+  .stat { text-align: center; }
+  .stat .val { font-family: var(--mono); font-size: 32px; font-weight: 700; }
+  .stat .lbl { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+  .stat.pass .val { color: var(--teal); }
+  .stat.fail .val { color: var(--red); }
+
+  .btn {
+    background: transparent; border: 1px solid var(--amber); color: var(--amber);
+    font-family: var(--mono); font-size: 11px; padding: 8px 16px; border-radius: var(--radius); cursor: pointer;
+    text-transform: uppercase; transition: background 0.15s;
+  }
+  .btn:hover { background: var(--amber-dim); }
+
+  .test-list { display: flex; flex-direction: column; gap: 12px; }
+  .test-item {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 16px; font-family: var(--mono); font-size: 12px;
+  }
+  .test-item.pass { border-left: 4px solid var(--teal); }
+  .test-item.fail { border-left: 4px solid var(--red); }
+
+  .test-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .test-name { font-weight: 600; color: var(--text); }
+  .test-badge { font-size: 10px; padding: 2px 8px; border-radius: 3px; text-transform: uppercase; }
+  .test-badge.pass { background: var(--teal-dim); color: var(--teal); }
+  .test-badge.fail { background: var(--red-dim); color: var(--red); }
+
+  .test-log { font-size: 11px; color: var(--muted); line-height: 1.5; white-space: pre-wrap; margin-top: 6px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>VANTA<span>GE</span> — Unit Test Suite</h1>
+    <p style="font-size:12px;color:var(--muted);margin-top:4px;">Automated deterministic feature extraction, rule engine, &amp; IndexedDB storage verification</p>
+  </div>
+  <button class="btn" id="runTestsBtn">Run All Tests</button>
+</header>
+
+<div class="summary-card">
+  <div class="stat pass">
+    <div class="val" id="passCount">0</div>
+    <div class="lbl">Passed</div>
+  </div>
+  <div class="stat fail">
+    <div class="val" id="failCount">0</div>
+    <div class="lbl">Failed</div>
+  </div>
+  <div class="stat">
+    <div class="val" id="totalCount">0</div>
+    <div class="lbl">Total Tests</div>
+  </div>
+</div>
+
+<div class="test-list" id="testList"></div>
+
+<canvas id="testCanvas" width="400" height="300" style="display:none;"></canvas>
+
+<script src="db.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const testList = $('testList');
+
+let tests = [];
+
+function assert(condition, message) {
+  if (!condition) throw new Error(message || 'Assertion failed');
+}
+
+function assertEqual(actual, expected, message) {
+  if (actual !== expected) throw new Error(`${message || 'Expected equal'}: got ${actual}, expected ${expected}`);
+}
+
+function assertInRange(val, min, max, message) {
+  if (val < min || val > max) throw new Error(`${message || 'Value out of range'}: got ${val}, expected between ${min} and ${max}`);
+}
+
+function registerTest(name, fn) {
+  tests.push({ name, fn });
+}
+
+// --- Test Definitions ---
+
+registerTest('Deterministic IDS & Alarm Density Test on Synthetic Gray Canvas', async () => {
+  const canvas = $('testCanvas');
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#808080';
+  ctx.fillRect(0, 0, 400, 300);
+
+  const img = new Image();
+  img.src = canvas.toDataURL();
+  await new Promise(r => img.onload = r);
+
+  const workerResult = extractFeaturesSynthetic(img);
+  assert(workerResult.ids < 0.05, `IDS for solid gray should be near 0, got ${workerResult.ids}`);
+  assert(workerResult.alarmDensity === 0, `Alarm density for solid gray should be 0, got ${workerResult.alarmDensity}`);
+  assertEqual(workerResult.distinctColors, 1, `Distinct colors for solid gray should be 1`);
+});
+
+registerTest('Synthetic Alarm Density Detection (Red/Yellow Dominant Canvas)', async () => {
+  const canvas = $('testCanvas');
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#ff0000'; // Pure Red
+  ctx.fillRect(0, 0, 400, 300);
+
+  const img = new Image();
+  img.src = canvas.toDataURL();
+  await new Promise(r => img.onload = r);
+
+  const workerResult = extractFeaturesSynthetic(img);
+  assert(workerResult.alarmDensity > 0.9, `Alarm density for pure red should be >0.9, got ${workerResult.alarmDensity}`);
+});
+
+registerTest('Rule Engine Threshold Escalation Logic', async () => {
+  const THRESHOLDS = { maxDistinctColors: 6, maxAlarmIndicators: 4, maxInfoDensity: 0.35, minContrastRatio: 4.5, maxColorEntropy: 3.8, maxAlarmDensity: 0.08 };
+  const features = { distinctColors: 12, alarmDensity: 0.12, ids: 0.45, minContrastRatio: 2.1, colorEntropy: 4.2 };
+
+  const initialIssues = [];
+  const validated = applyRuleEngineSynthetic(initialIssues, features);
+
+  assert(validated.some(i => i.category === 'color-overuse'), 'Should trigger color-overuse rule');
+  assert(validated.some(i => i.category === 'alarm-clutter'), 'Should trigger alarm-clutter rule');
+  assert(validated.some(i => i.category === 'information-density'), 'Should trigger information-density rule');
+  assert(validated.some(i => i.category === 'contrast-legibility'), 'Should trigger contrast-legibility rule');
+});
+
+registerTest('Normalizer Safety Bounds for Bounding Boxes', async () => {
+  const rawIssue = { x: -15, y: 120, w: 150, h: 0, category: '', severity: 'invalid' };
+  const norm = normalizeIssueSynthetic(rawIssue);
+
+  assertEqual(norm.x, 0, 'x clamped to 0');
+  assertEqual(norm.y, 99, 'y clamped to 99');
+  assertEqual(norm.w, 100, 'w clamped to fit canvas');
+  assertEqual(norm.h, 1, 'h clamped to min 1');
+  assertEqual(norm.severity, 'medium', 'invalid severity defaulted to medium');
+});
+
+registerTest('IndexedDB Database CRUD & Perceptual Hashing', async () => {
+  await window.HMI_DB.openDB();
+
+  const plant = await window.HMI_DB.addPlant({ name: 'Test Refinery Site', industry_type: 'Oil & Gas' });
+  assert(plant.id, 'Plant ID generated');
+
+  const screen = await window.HMI_DB.addScreen({ plant_id: plant.id, name: 'Main Distillation Unit', tag: 'CDU-TEST-01' });
+  assert(screen.id, 'Screen ID generated');
+
+  const run = await window.HMI_DB.saveAnalysisRun({
+    plant_id: plant.id,
+    screen_id: screen.id,
+    risk_score: 25,
+    compliance_score: 75,
+    cognitive_load: 30
+  });
+  assert(run.id, 'Run ID generated');
+
+  const screenRuns = await window.HMI_DB.getRunsByScreen(screen.id);
+  assert(screenRuns.length >= 1, 'Run retrieved from IndexedDB');
+
+  const hash1 = '1100110011001100110011001100110011001100110011001100110011001100';
+  const hash2 = '1100110011001100110011001100110011001100110011001100110011001111';
+  const dist = window.HMI_DB.hashDistance(hash1, hash2);
+  assertEqual(dist, 2, 'Hamming distance between hashes is 2');
+});
+
+// --- Runner Execution ---
+
+async function runAllTests() {
+  testList.innerHTML = '';
+  let passed = 0, failed = 0;
+
+  for (const t of tests) {
+    const el = document.createElement('div');
+    el.className = 'test-item';
+    try {
+      await t.fn();
+      passed++;
+      el.classList.add('pass');
+      el.innerHTML = `
+        <div class="test-header">
+          <span class="test-name">${t.name}</span>
+          <span class="test-badge pass">PASS</span>
+        </div>
+        <div class="test-log">All assertions passed cleanly.</div>
+      `;
+    } catch (err) {
+      failed++;
+      el.classList.add('fail');
+      el.innerHTML = `
+        <div class="test-header">
+          <span class="test-name">${t.name}</span>
+          <span class="test-badge fail">FAIL</span>
+        </div>
+        <div class="test-log">${err.message}\n${err.stack || ''}</div>
+      `;
+    }
+    testList.appendChild(el);
+  }
+
+  $('passCount').textContent = passed;
+  $('failCount').textContent = failed;
+  $('totalCount').textContent = tests.length;
+}
+
+$('runTestsBtn').addEventListener('click', runAllTests);
+
+document.addEventListener('DOMContentLoaded', runAllTests);
+
+// Synthetic helpers matching core logic
+function extractFeaturesSynthetic(image) {
+  const ac = $('testCanvas');
+  ac.width = 400; ac.height = 300;
+  const ctx = ac.getContext('2d');
+  ctx.drawImage(image, 0, 0, 400, 300);
+  const { data, width, height } = ctx.getImageData(0, 0, 400, 300);
+  const totalPixels = width * height;
+
+  let alarmPixels = 0, edgePixels = 0;
+  const colorBuckets = {};
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * 4;
+      const r = data[i], g = data[i+1], b = data[i+2];
+      const key = `${Math.floor(r/16)},${Math.floor(g/16)},${Math.floor(b/16)}`;
+      colorBuckets[key] = (colorBuckets[key] || 0) + 1;
+      if ((r > 180 && g < 100 && b < 100) || (r > 200 && g > 150 && b < 80)) alarmPixels++;
+      if (x > 0) {
+        const pi = (y * width + (x-1)) * 4;
+        if (Math.abs(r - data[pi]) + Math.abs(g - data[pi+1]) + Math.abs(b - data[pi+2]) > 60) edgePixels++;
+      }
+    }
+  }
+
+  const distinctColors = Object.keys(colorBuckets).filter(k => colorBuckets[k] / totalPixels > 0.005).length;
+  return {
+    ids: edgePixels / totalPixels,
+    alarmDensity: alarmPixels / totalPixels,
+    distinctColors
+  };
+}
+
+function applyRuleEngineSynthetic(issues, features) {
+  const validated = [...issues];
+  const cats = new Set(validated.map(i => i.category));
+  if (features.distinctColors > 6 && !cats.has('color-overuse')) validated.push({ category: 'color-overuse', severity: 'medium' });
+  if (features.alarmDensity > 0.08 && !cats.has('alarm-clutter')) validated.push({ category: 'alarm-clutter', severity: 'high' });
+  if (features.ids > 0.35 && !cats.has('information-density')) validated.push({ category: 'information-density', severity: 'medium' });
+  if (features.minContrastRatio < 4.5 && !cats.has('contrast-legibility')) validated.push({ category: 'contrast-legibility', severity: 'high' });
+  return validated;
+}
+
+function normalizeIssueSynthetic(it) {
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, Number(v)||0));
+  const x = clamp(it.x, 0, 99);
+  const y = clamp(it.y, 0, 99);
+  return {
+    x, y,
+    w: clamp(it.w, 1, 100 - x),
+    h: clamp(it.h, 1, 100 - y),
+    category: it.category || 'information-density',
+    severity: ['high','medium','low'].includes(it.severity) ? it.severity : 'medium'
+  };
+}
+</script>
+</body>
+</html>

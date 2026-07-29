@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Batch Multi-Screen HMI Auditor — Vantage</title>
+<style>
+  :root {
+    --bg: #0f1216;
+    --surface: #171b21;
+    --surface-2: #1e242c;
+    --line: #2a3139;
+    --text: #e8ecf0;
+    --muted: #8b949e;
+    --amber: #f0a500;
+    --amber-dim: rgba(240,165,0,0.15);
+    --teal: #3fb8a6;
+    --teal-dim: rgba(63,184,166,0.15);
+    --red: #e2504a;
+    --red-dim: rgba(226,80,74,0.15);
+    --blue: #5b9fd4;
+    --mono: 'Cascadia Code', 'Courier New', Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --radius: 6px;
+    --shadow: 0 4px 24px rgba(0,0,0,0.35);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; line-height: 1.5; }
+
+  header {
+    border-bottom: 1px solid var(--line);
+    padding: 14px 24px;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 16px; flex-wrap: wrap; background: var(--surface);
+  }
+  .brand h1 {
+    font-family: var(--mono); font-size: 15px; letter-spacing: 3px;
+    text-transform: uppercase; color: var(--text);
+  }
+  .brand h1 span { color: var(--amber); font-weight: bold; }
+  .brand p { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  .nav-tabs { display: flex; gap: 4px; background: var(--bg); padding: 4px; border-radius: var(--radius); border: 1px solid var(--line); }
+  .nav-tab { font-family: var(--mono); font-size: 11px; color: var(--muted); text-decoration: none; padding: 5px 12px; border-radius: 4px; transition: all 0.15s; }
+  .nav-tab:hover { color: var(--text); background: var(--surface-2); }
+  .nav-tab.active { color: var(--amber); background: var(--surface); border: 1px solid var(--line); }
+
+  .header-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+  .btn {
+    background: transparent; border: 1px solid var(--line); color: var(--text);
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.5px; text-transform: uppercase;
+    padding: 8px 14px; border-radius: var(--radius); cursor: pointer;
+    transition: background 0.15s, border-color 0.15s; white-space: nowrap;
+  }
+  .btn:hover { background: var(--surface-2); border-color: var(--muted); }
+  .btn:disabled { opacity: 0.35; cursor: not-allowed; }
+  .btn-primary { border-color: var(--amber); color: var(--amber); }
+  .btn-primary:hover { background: var(--amber-dim); }
+  .btn-sm { padding: 5px 10px; font-size: 10px; }
+
+  .main { padding: 24px; max-width: 1400px; margin: 0 auto; }
+
+  .upload-card {
+    border: 2px dashed var(--line); border-radius: var(--radius);
+    padding: 40px 24px; text-align: center; cursor: pointer;
+    transition: border-color 0.2s, background 0.2s; background: var(--surface);
+    margin-bottom: 24px; box-shadow: var(--shadow);
+  }
+  .upload-card:hover, .upload-card.dragover { border-color: var(--amber); background: var(--amber-dim); }
+  .upload-card .icon { font-size: 36px; margin-bottom: 12px; opacity: 0.5; }
+  .upload-card p { color: var(--muted); font-size: 14px; }
+  .upload-card .hint { font-size: 12px; margin-top: 6px; opacity: 0.7; font-family: var(--mono); }
+  input[type=file] { display: none; }
+
+  .progress-section {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 20px; margin-bottom: 24px; display: none; box-shadow: var(--shadow);
+  }
+  .progress-section.visible { display: block; }
+
+  .progress-header { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 12px; margin-bottom: 8px; }
+  .progress-bar-wrap { height: 10px; background: var(--bg); border-radius: 99px; overflow: hidden; margin-bottom: 12px; border: 1px solid var(--line); }
+  .progress-bar-fill { height: 100%; background: var(--amber); width: 0%; transition: width 0.3s; }
+
+  .batch-summary {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; display: none;
+  }
+  .batch-summary.visible { display: grid; }
+  .sum-card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 16px; text-align: center;
+  }
+  .sum-card .v { font-family: var(--mono); font-size: 28px; font-weight: 700; }
+  .sum-card .l { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px; }
+
+  .table-card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    overflow: hidden; box-shadow: var(--shadow); display: none;
+  }
+  .table-card.visible { display: block; }
+  .table-toolbar {
+    padding: 16px 20px; background: var(--surface-2); border-bottom: 1px solid var(--line);
+    display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;
+  }
+  .table-title { font-family: var(--mono); font-size: 13px; text-transform: uppercase; color: var(--text); letter-spacing: 1px; }
+
+  table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }
+  th { font-family: var(--mono); font-size: 10px; text-transform: uppercase; color: var(--muted); padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--surface); }
+  td { padding: 12px 16px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  tr:hover td { background: var(--surface-2); }
+
+  .mini-canvas-thumb {
+    width: 80px; height: 50px; border-radius: 4px; border: 1px solid var(--line); background: #000; object-fit: cover; display: block;
+  }
+
+  .score-pill {
+    font-family: var(--mono); font-weight: 600; padding: 3px 8px; border-radius: 4px; font-size: 12px; display: inline-block;
+  }
+  .score-pill.good { background: var(--teal-dim); color: var(--teal); }
+  .score-pill.mid { background: var(--amber-dim); color: var(--amber); }
+  .score-pill.bad { background: var(--red-dim); color: var(--red); }
+
+  .status-tag { font-family: var(--mono); font-size: 10px; text-transform: uppercase; padding: 2px 6px; border-radius: 3px; }
+  .status-tag.done { background: var(--teal-dim); color: var(--teal); }
+  .status-tag.running { background: var(--amber-dim); color: var(--amber); }
+  .status-tag.queued { background: var(--bg); color: var(--muted); border: 1px solid var(--line); }
+  .status-tag.failed { background: var(--red-dim); color: var(--red); }
+
+  footer {
+    border-top: 1px solid var(--line); padding: 12px 24px;
+    font-size: 11px; color: var(--muted); line-height: 1.6; background: var(--surface);
+    display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-top: 40px;
+  .batch-row:hover { background: var(--surface-2); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <h1>VANTA<span>GE</span></h1>
+    <p>Batch Mode Multi-Screen HMI Audit System</p>
+  </div>
+  <nav class="nav-tabs">
+    <a href="HMI.html" class="nav-tab">Single Audit</a>
+    <a href="batch.html" class="nav-tab active">Batch Auditor</a>
+    <a href="history.html" class="nav-tab">Historical Trends</a>
+    <a href="error-logs.html" target="_blank" class="nav-tab">Error Logs</a>
+    <a href="tests.html" target="_blank" class="nav-tab">Unit Tests</a>
+  </nav>
+  <div class="header-actions">
+    <button class="btn btn-sm" id="saveBatchHistoryBtn" disabled>Save Batch to History</button>
+    <button class="btn btn-sm" id="exportBatchJsonBtn" disabled>Export JSON</button>
+    <button class="btn btn-primary" id="startBatchBtn" disabled>Start Batch Audit</button>
+  </div>
+</header>
+
+<div class="main">
+
+  <div class="upload-card" id="batchDropZone">
+    <div class="icon">📁</div>
+    <p>Drag &amp; drop multiple HMI screenshots (or folder/zip) here to run a plant-wide batch audit</p>
+    <p class="hint">Upload 5 - 200 screens &middot; Auto parses plant names &amp; tags from filenames</p>
+  </div>
+  <input type="file" id="batchFileInput" multiple accept="image/png,image/jpeg,image/webp" />
+
+  <div class="progress-section" id="progressSection">
+    <div class="progress-header">
+      <span id="progressStatusText">Processing Queue...</span>
+      <span id="progressPercentText">0%</span>
+    </div>
+    <div class="progress-bar-wrap">
+      <div class="progress-bar-fill" id="progressBarFill"></div>
+    </div>
+  </div>
+
+  <div class="batch-summary" id="batchSummary">
+    <div class="sum-card">
+      <div class="v" id="sumTotal">0</div>
+      <div class="l">Total Screens</div>
+    </div>
+    <div class="sum-card">
+      <div class="v" id="sumAvgRisk">—</div>
+      <div class="l">Plant Avg Risk</div>
+    </div>
+    <div class="sum-card">
+      <div class="v" id="sumAvgComp">—</div>
+      <div class="l">Avg Compliance %</div>
+    </div>
+    <div class="sum-card">
+      <div class="v" id="sumWorst">—</div>
+      <div class="l">Highest Risk Screen</div>
+    </div>
+  </div>
+
+  <div class="table-card" id="tableCard">
+    <div class="table-toolbar">
+      <div class="table-title">Ranked Audit Results</div>
+      <div style="display:flex;gap:8px;">
+        <select id="sortSelect" style="background:var(--bg);border:1px solid var(--line);color:var(--text);padding:6px 10px;border-radius:4px;font-family:var(--mono);font-size:11px;">
+          <option value="risk-desc">Sort: Highest Risk First</option>
+          <option value="risk-asc">Sort: Lowest Risk First</option>
+          <option value="name-asc">Sort: Name (A-Z)</option>
+        </select>
+      </div>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Screen</th>
+          <th>Parsed Plant &amp; Tag</th>
+          <th>Type</th>
+          <th>Risk</th>
+          <th>Compliance</th>
+          <th>Cog Load</th>
+          <th>Findings</th>
+          <th>Status</th>
+          <th>Heatmap Preview</th>
+        </tr>
+      </thead>
+      <tbody id="batchTableBody"></tbody>
+    </table>
+  </div>
+
+</div>
+
+<footer>
+  <span>Vantage Batch Auditor &middot; IIT Kanpur &middot; Arshbir Singh &amp; Ashman Das</span>
+  <span>Worker-Assisted Feature Extraction &amp; Parallel Processing</span>
+</footer>
+
+<script src="db.js"></script>
+<script src="worker.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+
+let batchFiles = [];
+let batchQueue = [];
+let batchResults = [];
+let worker = null;
+
+const DEFAULT_API_KEY = 'AIzaSyBpd2ribU0vt7ChX6NfKnYHzHQDsjWqZdY';
+
+document.addEventListener('DOMContentLoaded', () => {
+  setupWorker();
+  setupUpload();
+  setupControls();
+});
+
+function setupWorker() {
+  try {
+    worker = new Worker('worker.js');
+  } catch (e) {
+    console.warn('Worker initialization fallback to main thread:', e);
+  }
+}
+
+function setupUpload() {
+  const zone = $('batchDropZone');
+  const input = $('batchFileInput');
+
+  zone.addEventListener('click', () => input.click());
+  zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('dragover'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+  zone.addEventListener('drop', (e) => {
+    e.preventDefault(); zone.classList.remove('dragover');
+    if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
+  });
+  input.addEventListener('change', (e) => {
+    if (e.target.files.length) handleFiles(e.target.files);
+  });
+}
+
+function parseFilename(filename) {
+  // e.g. "Jamnagar_CDU1_Overview.png" -> Plant: Jamnagar, Screen: CDU1 Overview, Tag: CDU-1
+  const clean = filename.replace(/\.[^/.]+$/, "");
+  const parts = clean.split(/[-_]/);
+
+  if (parts.length >= 3) {
+    return {
+      plant: parts[0],
+      name: parts.slice(1).join(' '),
+      tag: parts[1].toUpperCase()
+    };
+  } else if (parts.length === 2) {
+    return { plant: parts[0], name: parts[1], tag: parts[1].toUpperCase() };
+  }
+  return { plant: 'Plant General', name: clean, tag: 'SCR-' + Math.floor(100 + Math.random()*900) };
+}
+
+function handleFiles(fileList) {
+  batchFiles = Array.from(fileList).filter(f => f.type.startsWith('image/'));
+  if (batchFiles.length === 0) return alert('Please select PNG or JPG images.');
+
+  batchQueue = batchFiles.map((file, idx) => {
+    const meta = parseFilename(file.name);
+    return {
+      id: 'batch_item_' + idx,
+      file,
+      name: meta.name,
+      plant: meta.plant,
+      tag: meta.tag,
+      screen_type: 'overview',
+      status: 'queued', // 'queued' | 'running' | 'done' | 'failed'
+      features: null,
+      issues: [],
+      risk: 0,
+      comp: 100,
+      cog: 0
+    };
+  });
+
+  $('startBatchBtn').disabled = false;
+  renderBatchTable();
+  $('tableCard').classList.add('visible');
+  $('progressStatusText').textContent = `Loaded ${batchQueue.length} screen(s). Click "Start Batch Audit" to run.`;
+  $('progressSection').classList.add('visible');
+}
+
+function renderBatchTable() {
+  const tbody = $('batchTableBody');
+  tbody.innerHTML = batchQueue.map((item, idx) => `
+    <tr onclick="viewBatchItem(${idx})" class="batch-row" style="cursor:pointer;" title="Click to view detailed analysis">
+      <td><strong>${escapeHtml(item.name)}</strong></td>
+      <td><span style="color:var(--muted);">${escapeHtml(item.plant)}</span> &middot; <span style="font-family:var(--mono);color:var(--blue);">${escapeHtml(item.tag)}</span></td>
+      <td style="font-family:var(--mono);font-size:10px;text-transform:uppercase;">${item.screen_type}</td>
+      <td>${item.status === 'done' ? `<span class="score-pill ${item.risk < 35 ? 'good' : item.risk < 65 ? 'mid' : 'bad'}">${item.risk}</span>` : '—'}</td>
+      <td>${item.status === 'done' ? `<span class="score-pill ${item.comp >= 70 ? 'good' : item.comp >= 45 ? 'mid' : 'bad'}">${item.comp}%</span>` : '—'}</td>
+      <td style="font-family:var(--mono);">${item.status === 'done' ? item.cog : '—'}</td>
+      <td>${item.issues.length ? `${item.issues.length} finding(s)` : '—'}</td>
+      <td><span class="status-tag ${item.status}">${item.status}</span></td>
+      <td><canvas id="thumb_${item.id}" class="mini-canvas-thumb"></canvas></td>
+    </tr>
+  `).join('');
+}
+
+function setupControls() {
+  $('startBatchBtn').addEventListener('click', runBatchAudit);
+  $('saveBatchHistoryBtn').addEventListener('click', saveBatchToHistory);
+  $('exportBatchJsonBtn').addEventListener('click', exportBatchJSON);
+  $('sortSelect').addEventListener('change', () => {
+    const val = $('sortSelect').value;
+    if (val === 'risk-desc') batchQueue.sort((a,b) => b.risk - a.risk);
+    else if (val === 'risk-asc') batchQueue.sort((a,b) => a.risk - b.risk);
+    else if (val === 'name-asc') batchQueue.sort((a,b) => a.name.localeCompare(b.name));
+    renderBatchTable();
+  });
+}
+
+async function runBatchAudit() {
+  $('startBatchBtn').disabled = true;
+  const apiKey = localStorage.getItem('hmi_gemini_key') || DEFAULT_API_KEY;
+
+  let completed = 0;
+  const total = batchQueue.length;
+
+  for (const item of batchQueue) {
+    item.status = 'running';
+    renderBatchTable();
+    updateProgress(completed, total, `Analyzing ${item.name}...`);
+
+    try {
+      // Step 1: Feature Extraction
+      const imgData = await loadImageData(item.file);
+      const features = await extractFeaturesAsync(imgData.image);
+      item.features = features;
+
+      // Step 2: AI Reasoning (with mock/fallback safety if offline)
+      let aiIssues = [];
+      try {
+        aiIssues = await callGeminiAPI(item.file, features, apiKey);
+      } catch (e) {
+        console.warn(`AI API call failed for ${item.name}, applying rule engine default findings:`, e);
+        aiIssues = generateFallbackIssues(features);
+      }
+
+      const validated = applyRuleEngine(aiIssues, features);
+      item.issues = validated;
+
+      const penalty = validated.reduce((s, it) => s + ({ high: 3, medium: 1.5, low: 0.5 }[it.severity] || 0), 0);
+      item.risk = Math.round(Math.min(100, features.riskScore + penalty));
+      item.comp = Math.round(Math.max(0, 100 * (1 - item.risk / 100)));
+      item.cog = Math.round(Math.min(100, features.cognitiveLoad + validated.length * 3));
+
+      item.status = 'done';
+      drawMiniThumbnail(`thumb_${item.id}`, imgData.image, validated);
+    } catch (err) {
+      console.error(`Failed auditing item ${item.name}:`, err);
+      item.status = 'failed';
+    }
+
+    completed++;
+    updateProgress(completed, total, `Processed ${completed} of ${total} screens`);
+    renderBatchTable();
+  }
+
+  updateBatchSummary();
+  $('saveBatchHistoryBtn').disabled = false;
+  $('exportBatchJsonBtn').disabled = false;
+}
+
+function updateProgress(done, total, text) {
+  const pct = Math.round((done / total) * 100);
+  $('progressBarFill').style.width = pct + '%';
+  $('progressPercentText').textContent = pct + '%';
+  $('progressStatusText').textContent = text;
+}
+
+function updateBatchSummary() {
+  const doneItems = batchQueue.filter(i => i.status === 'done');
+  if (doneItems.length === 0) return;
+
+  $('sumTotal').textContent = doneItems.length;
+  const avgRisk = Math.round(doneItems.reduce((s, i) => s + i.risk, 0) / doneItems.length);
+  const avgComp = Math.round(doneItems.reduce((s, i) => s + i.comp, 0) / doneItems.length);
+  const worst = [...doneItems].sort((a,b) => b.risk - a.risk)[0];
+
+  $('sumAvgRisk').textContent = avgRisk;
+  $('sumAvgComp').textContent = avgComp + '%';
+  $('sumWorst').textContent = worst ? `${worst.name} (${worst.risk})` : '—';
+  $('batchSummary').classList.add('visible');
+}
+
+function loadImageData(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => resolve({ image: img, base64: e.target.result.split(',')[1], mime: file.type });
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function extractFeaturesAsync(image) {
+  return new Promise((resolve, reject) => {
+    const canvas = document.createElement('canvas');
+    const maxDim = 400;
+    const scale = Math.min(1, maxDim / Math.max(image.width, image.height));
+    canvas.width = Math.round(image.width * scale);
+    canvas.height = Math.round(image.height * scale);
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    
+    try {
+      const w = new Worker('worker.js');
+      w.onmessage = (e) => {
+        if (e.data.success) resolve(e.data.features);
+        else resolve(extractFeaturesWorker(imgData, imgData.width, imgData.height));
+        w.terminate();
+      };
+      w.onerror = (e) => {
+        w.terminate();
+        resolve(extractFeaturesWorker(imgData, imgData.width, imgData.height));
+      };
+      w.postMessage({ id: 1, imageData: imgData, width: imgData.width, height: imgData.height });
+    } catch (err) {
+      resolve(extractFeaturesWorker(imgData, imgData.width, imgData.height));
+    }
+  });
+}
+
+function findCellBoundingBox(gridCells, filterFn, defaultBox) {
+  if (!gridCells || !gridCells.length) return defaultBox;
+  const matching = gridCells.filter(filterFn);
+  if (!matching.length) return defaultBox;
+
+  let minX = 100, minY = 100, maxX = 0, maxY = 0;
+  matching.forEach(c => {
+    if (c.x < minX) minX = c.x;
+    if (c.y < minY) minY = c.y;
+    if (c.x + 12.5 > maxX) maxX = c.x + 12.5;
+    if (c.y + 12.5 > maxY) maxY = c.y + 12.5;
+  });
+  return {
+    x: Math.max(2, Math.round(minX)),
+    y: Math.max(2, Math.round(minY)),
+    w: Math.max(10, Math.min(96, Math.round(maxX - minX))),
+    h: Math.max(10, Math.min(96, Math.round(maxY - minY)))
+  };
+}
+
+function generateFallbackIssues(features) {
+  return []; // Rule engine will supply deterministic fallback issues
+}
+
+function applyRuleEngine(issues, features) {
+  const validated = issues.map(it => ({
+    x: Math.max(0, Math.min(99, it.x || 10)),
+    y: Math.max(0, Math.min(99, it.y || 10)),
+    w: Math.max(1, Math.min(100, it.w || 30)),
+    h: Math.max(1, Math.min(100, it.h || 20)),
+    category: it.category || 'information-density',
+    severity: ['high','medium','low'].includes(it.severity) ? it.severity : 'medium',
+    issue: it.issue || 'Compliance issue detected',
+    recommendation: it.recommendation || 'Review control panel layout',
+    standard_ref: it.standard_ref || 'ISA-101',
+    source: 'ai'
+  }));
+  
+  const cats = new Set(validated.map(i => i.category));
+  const grid = features.gridCells || [];
+
+  if (features.distinctColors > 6 && !cats.has('color-overuse')) {
+    const box = findCellBoundingBox(grid, c => c.edgeRatio > 0.15 || c.alarmRatio > 0.01, { x: 22, y: 15, w: 56, h: 65 });
+    validated.push({
+      ...box, isGlobal: false,
+      category: 'color-overuse', severity: features.distinctColors > 10 ? 'high' : 'medium',
+      issue: `Screen uses ~${features.distinctColors} distinct color regions; ISA-101 recommends minimal accent colors.`,
+      recommendation: 'Reduce decorative color use.',
+      standard_ref: 'ISA-101 §5',
+      source: 'rule-engine'
+    });
+  }
+
+  if (features.alarmDensity > 0.08 && !cats.has('alarm-clutter')) {
+    const box = findCellBoundingBox(grid, c => c.alarmRatio > 0.01, { x: 35, y: 18, w: 30, h: 22 });
+    validated.push({
+      ...box, isGlobal: false,
+      category: 'alarm-clutter', severity: 'high',
+      issue: `High alarm pixel density (${(features.alarmDensity * 100).toFixed(1)}% of screen).`,
+      recommendation: 'Reduce simultaneous visible alarms.',
+      standard_ref: 'EEMUA 191',
+      source: 'rule-engine'
+    });
+  }
+
+  if (features.ids > 0.35 && !cats.has('information-density')) {
+    const box = findCellBoundingBox(grid, c => c.edgeRatio > 0.18, { x: 25, y: 18, w: 50, h: 55 });
+    validated.push({
+      ...box, isGlobal: false,
+      category: 'information-density', severity: 'medium',
+      issue: `Information density score (${features.ids.toFixed(2)}) exceeds recommended limits.`,
+      recommendation: 'Split into hierarchical displays.',
+      standard_ref: 'NUREG-0700 §8',
+      source: 'rule-engine'
+    });
+  }
+
+  if (features.minContrastRatio < 4.5 && !cats.has('contrast-legibility')) {
+    const box = findCellBoundingBox(grid, c => c.hasDetail && c.cr < 4.5, { x: 36, y: 32, w: 28, h: 22 });
+    validated.push({
+      ...box, isGlobal: false,
+      category: 'contrast-legibility', severity: features.minContrastRatio < 3 ? 'high' : 'medium',
+      issue: `Minimum sampled contrast ratio is ${features.minContrastRatio}:1.`,
+      recommendation: 'Increase foreground/background contrast.',
+      standard_ref: 'NUREG-0700 §4',
+      source: 'rule-engine'
+    });
+  }
+
+  return validated.map(it => {
+    let sev = it.severity;
+    if (it.category === 'alarm-clutter' && features.alarmDensity > 0.08 && sev === 'medium') sev = 'high';
+    if (it.category === 'contrast-legibility' && features.minContrastRatio < 3 && sev !== 'high') sev = 'high';
+    return { ...it, severity: sev };
+  });
+}
+
+async function callGeminiAPI(file, features, apiKey) {
+  const imgData = await loadImageData(file);
+  const prompt = `You are Vantage, an expert human-factors compliance auditor applying ISA-101 and NUREG-0700 to an industrial HMI/SCADA screenshot.
+
+First, identify UI elements: count data_elements (numeric indicators, tags, values), alarm_indicators (red/yellow alarm banners, flashing indicators, alarm icons), navigation_items (tabs, menu buttons, nav bars), and distinct_colors (non-grey accent colors in active use).
+
+Then find visual miscompliances in these categories ONLY:
+1. color-overuse - rainbow screens, decorative color, failure of grayscale-normal / color-abnormal convention (ISA-101)
+2. alarm-clutter - excessive simultaneous alarms, alarm banners dominating, poor prioritization (EEMUA 191 / ISA-101)
+3. information-density - overcrowded displays, too many values, poor grouping (NUREG-0700)
+4. navigation-clutter - excessive tabs/menus, inconsistent navigation, hidden critical functions (ISA-101)
+5. contrast-legibility - poor text/background contrast, small critical fonts (NUREG-0700)
+
+Deterministic pre-analysis metrics for this screen:
+- Information Density (IDS): ${features.ids}
+- Alarm Density (AD): ${(features.alarmDensity * 100).toFixed(2)}%
+- Color Entropy (CE): ${features.colorEntropy}
+- Distinct colors detected: ${features.distinctColors}
+- Min Contrast Ratio (CR): ${features.minContrastRatio}:1
+
+Use these metrics to inform severity. For each issue return:
+- x, y, w, h: bounding box as PERCENTAGES (0-100), top-left origin
+- category: exact slug from the five categories
+- severity: "high", "medium", or "low"
+- issue: one specific sentence about what you see
+- recommendation: one actionable fix
+- standard_ref: ISA-101 or NUREG-0700 reference
+
+Find 4-10 issues. Be specific to THIS screen.`;
+
+  const schema = {
+    type: "OBJECT",
+    properties: {
+      detected_elements: {
+        type: "OBJECT",
+        properties: {
+          data_elements: { type: "NUMBER" },
+          alarm_indicators: { type: "NUMBER" },
+          navigation_items: { type: "NUMBER" },
+          distinct_colors: { type: "NUMBER" }
+        }
+      },
+      issues: {
+        type: "ARRAY",
+        items: {
+          type: "OBJECT",
+          properties: {
+            x: { type: "NUMBER" }, y: { type: "NUMBER" },
+            w: { type: "NUMBER" }, h: { type: "NUMBER" },
+            category: { type: "STRING" }, severity: { type: "STRING" },
+            issue: { type: "STRING" }, recommendation: { type: "STRING" },
+            standard_ref: { type: "STRING" }
+          },
+          required: ["x","y","w","h","category","severity","issue","recommendation"]
+        }
+      }
+    },
+    required: ["detected_elements", "issues"]
+  };
+
+  const response = await fetch(
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+      body: JSON.stringify({
+        contents: [{ parts: [
+          { text: prompt },
+          { inline_data: { mime_type: file.type, data: imgData.base64 } }
+        ]}],
+        generationConfig: { responseMimeType: "application/json", responseSchema: schema }
+      })
+    }
+  );
+
+  const data = await response.json();
+  if (data.error) throw new Error(data.error.message || 'API error');
+  const textBlock = data.candidates?.[0]?.content?.parts?.find(p => p.text);
+  if (!textBlock) throw new Error('No API response');
+  const parsed = JSON.parse(textBlock.text);
+  return parsed.issues || [];
+}
+
+function drawMiniThumbnail(canvasId, img, issues) {
+  const canvas = $(canvasId);
+  if (!canvas) return;
+  canvas.width = 160;
+  canvas.height = 100;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0, 160, 100);
+
+  issues.forEach(it => {
+    if (it.isGlobal || (it.w >= 85 && it.h >= 50) || (it.w === 100 && it.h === 100)) return;
+    const cx = ((it.x + it.w/2)/100) * 160;
+    const cy = ((it.y + it.h/2)/100) * 100;
+    const color = { high: '#e2504a', medium: '#f0a500', low: '#3fb8a6' }[it.severity] || '#f0a500';
+    ctx.fillStyle = color;
+    ctx.globalAlpha = 0.6;
+    ctx.beginPath(); ctx.arc(cx, cy, 8, 0, Math.PI*2); ctx.fill();
+    ctx.globalAlpha = 1.0;
+  });
+}
+
+async function saveBatchToHistory() {
+  try {
+    for (const item of batchQueue) {
+      if (item.status !== 'done') continue;
+
+      let plants = await window.HMI_DB.getAllPlants();
+      let plant = plants.find(p => p.name.toLowerCase() === item.plant.toLowerCase());
+      if (!plant) plant = await window.HMI_DB.addPlant({ name: item.plant });
+
+      let screens = await window.HMI_DB.getScreensByPlant(plant.id);
+      let screen = screens.find(s => s.tag.toLowerCase() === item.tag.toLowerCase());
+      if (!screen) screen = await window.HMI_DB.addScreen({ plant_id: plant.id, name: item.name, tag: item.tag });
+
+      await window.HMI_DB.saveAnalysisRun({
+        plant_id: plant.id,
+        screen_id: screen.id,
+        timestamp: Date.now(),
+        risk_score: item.risk,
+        compliance_score: item.comp,
+        cognitive_load: item.cog,
+        metrics_snapshot: item.features,
+        issues_count_by_severity: {
+          high: item.issues.filter(i=>i.severity==='high').length,
+          medium: item.issues.filter(i=>i.severity==='medium').length,
+          low: item.issues.filter(i=>i.severity==='low').length
+        },
+        issues: item.issues
+      });
+    }
+    alert('Batch results successfully saved to IndexedDB History!');
+  } catch (err) {
+    alert('Failed to save batch history: ' + err.message);
+  }
+}
+
+function exportBatchJSON() {
+  const data = batchQueue.map(i => ({
+    name: i.name, plant: i.plant, tag: i.tag, status: i.status,
+    risk_score: i.risk, compliance_score: i.comp, cognitive_load: i.cog, issues: i.issues
+  }));
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `vantage-batch-report-${Date.now()}.json`;
+  a.click();
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div'); d.textContent = s; return d.innerHTML;
+}
+</script>
+
+<div id="hmiModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:var(--bg); z-index:9999;">
+  <div style="padding:10px 24px; background:var(--surface); border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center;">
+    <strong id="hmiModalTitle" style="font-family:var(--sans); font-size:16px;">Detailed View</strong>
+    <button onclick="document.getElementById('hmiModal').style.display='none'" class="btn btn-sm">Close View</button>
+  </div>
+  <iframe id="hmiIframe" src="" style="width:100%; height:calc(100% - 53px); border:none;"></iframe>
+</div>
+
+<script>
+let currentViewItem = null;
+window.addEventListener('message', (e) => {
+  if (e.data && e.data.type === 'HMI_READY' && currentViewItem) {
+    const iframe = document.getElementById('hmiIframe');
+    iframe.contentWindow.postMessage({
+      type: 'LOAD_BATCH_ITEM',
+      file: currentViewItem.file,
+      features: currentViewItem.features,
+      issues: currentViewItem.issues
+    }, '*');
+  }
+});
+
+function viewBatchItem(idx) {
+  const item = batchQueue[idx];
+  if (item.status !== 'done') {
+    alert('This item has not been audited yet. Please run the batch audit first.');
+    return;
+  }
+  currentViewItem = item;
+  document.getElementById('hmiModalTitle').textContent = `Detailed View: ${item.name}`;
+  document.getElementById('hmiModal').style.display = 'block';
+  document.getElementById('hmiIframe').src = 'HMI.html?modal=1&time=' + Date.now();
+}
+</script>
+</body>
+</html>

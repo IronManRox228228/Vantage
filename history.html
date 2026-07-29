@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Historical Trends & Compliance Dashboard — Vantage</title>
+<style>
+  :root {
+    --bg: #0f1216;
+    --surface: #171b21;
+    --surface-2: #1e242c;
+    --line: #2a3139;
+    --text: #e8ecf0;
+    --muted: #8b949e;
+    --amber: #f0a500;
+    --amber-dim: rgba(240,165,0,0.15);
+    --teal: #3fb8a6;
+    --teal-dim: rgba(63,184,166,0.15);
+    --red: #e2504a;
+    --red-dim: rgba(226,80,74,0.15);
+    --blue: #5b9fd4;
+    --mono: 'Cascadia Code', 'Courier New', Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --radius: 6px;
+    --shadow: 0 4px 24px rgba(0,0,0,0.35);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; line-height: 1.5; }
+
+  header {
+    border-bottom: 1px solid var(--line);
+    padding: 14px 24px;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 16px; flex-wrap: wrap; background: var(--surface);
+  }
+  .brand h1 {
+    font-family: var(--mono); font-size: 15px; letter-spacing: 3px;
+    text-transform: uppercase; color: var(--text);
+  }
+  .brand h1 span { color: var(--amber); font-weight: bold; }
+  .brand p { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  .nav-tabs { display: flex; gap: 4px; background: var(--bg); padding: 4px; border-radius: var(--radius); border: 1px solid var(--line); }
+  .nav-tab { font-family: var(--mono); font-size: 11px; color: var(--muted); text-decoration: none; padding: 5px 12px; border-radius: 4px; transition: all 0.15s; }
+  .nav-tab:hover { color: var(--text); background: var(--surface-2); }
+  .nav-tab.active { color: var(--amber); background: var(--surface); border: 1px solid var(--line); }
+
+  .header-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+  .btn {
+    background: transparent; border: 1px solid var(--line); color: var(--text);
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.5px; text-transform: uppercase;
+    padding: 8px 14px; border-radius: var(--radius); cursor: pointer;
+    transition: background 0.15s, border-color 0.15s; white-space: nowrap;
+  }
+  .btn:hover { background: var(--surface-2); border-color: var(--muted); }
+  .btn:disabled { opacity: 0.35; cursor: not-allowed; }
+  .btn-primary { border-color: var(--amber); color: var(--amber); }
+  .btn-primary:hover { background: var(--amber-dim); }
+  .btn-sm { padding: 5px 10px; font-size: 10px; }
+
+  .main { padding: 24px; max-width: 1400px; margin: 0 auto; }
+
+  .filter-card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 16px 20px; margin-bottom: 24px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap;
+    box-shadow: var(--shadow);
+  }
+  .filter-group { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 180px; }
+  .filter-group label { font-family: var(--mono); font-size: 10px; text-transform: uppercase; color: var(--muted); letter-spacing: 0.5px; }
+  .filter-group select {
+    background: var(--bg); border: 1px solid var(--line); color: var(--text);
+    padding: 8px 12px; border-radius: var(--radius); font-family: var(--mono); font-size: 12px;
+  }
+
+  .kpi-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px;
+  }
+  .kpi-card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 16px 20px; text-align: center; position: relative; overflow: hidden;
+  }
+  .kpi-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--line);
+  }
+  .kpi-card.good::before { background: var(--teal); }
+  .kpi-card.warn::before { background: var(--amber); }
+  .kpi-card.bad::before { background: var(--red); }
+
+  .kpi-val { font-family: var(--mono); font-size: 32px; font-weight: 700; line-height: 1.1; margin-bottom: 4px; }
+  .kpi-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .kpi-sub { font-size: 11px; margin-top: 6px; font-family: var(--mono); }
+  .kpi-sub.up { color: var(--teal); }
+  .kpi-sub.down { color: var(--red); }
+
+  .charts-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px;
+  }
+  @media (max-width: 990px) {
+    .charts-grid { grid-template-columns: 1fr; }
+  }
+
+  .chart-card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 20px; box-shadow: var(--shadow);
+  }
+  .chart-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .chart-title { font-family: var(--mono); font-size: 13px; text-transform: uppercase; color: var(--amber); letter-spacing: 1px; }
+  .chart-sub { font-size: 11px; color: var(--muted); }
+
+  .canvas-chart-wrap { position: relative; width: 100%; height: 260px; }
+  canvas { width: 100%; height: 100%; display: block; }
+
+  .table-card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    overflow: hidden; box-shadow: var(--shadow); margin-bottom: 24px;
+  }
+  .table-header {
+    padding: 16px 20px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center;
+    background: var(--surface-2);
+  }
+  .table-title { font-family: var(--mono); font-size: 13px; text-transform: uppercase; color: var(--text); letter-spacing: 1px; }
+
+  table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }
+  th { font-family: var(--mono); font-size: 10px; text-transform: uppercase; color: var(--muted); padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--surface); }
+  td { padding: 12px 16px; border-bottom: 1px solid var(--line); font-family: var(--sans); }
+  tr:hover td { background: var(--surface-2); }
+
+  .badge-sev {
+    display: inline-block; font-family: var(--mono); font-size: 10px; padding: 2px 6px; border-radius: 3px; margin-right: 4px;
+  }
+  .badge-sev.high { background: var(--red-dim); color: var(--red); border: 1px solid var(--red); }
+  .badge-sev.medium { background: var(--amber-dim); color: var(--amber); border: 1px solid var(--amber); }
+  .badge-sev.low { background: var(--teal-dim); color: var(--teal); border: 1px solid var(--teal); }
+
+  .score-pill {
+    font-family: var(--mono); font-weight: 600; padding: 3px 8px; border-radius: 4px; font-size: 12px; display: inline-block;
+  }
+  .score-pill.good { background: var(--teal-dim); color: var(--teal); }
+  .score-pill.mid { background: var(--amber-dim); color: var(--amber); }
+  .score-pill.bad { background: var(--red-dim); color: var(--red); }
+
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+    display: none; align-items: center; justify-content: center;
+    z-index: 100; padding: 24px;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 24px; max-width: 720px; width: 100%; box-shadow: var(--shadow);
+    max-height: 90vh; overflow-y: auto;
+  }
+  .modal h2 { font-family: var(--mono); font-size: 14px; text-transform: uppercase; color: var(--amber); margin-bottom: 16px; }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+
+  footer {
+    border-top: 1px solid var(--line); padding: 12px 24px;
+    font-size: 11px; color: var(--muted); line-height: 1.6; background: var(--surface);
+    display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <h1>VANTA<span>GE</span></h1>
+    <p>Historical Trends &amp; Compliance Dashboard</p>
+  </div>
+  <nav class="nav-tabs">
+    <a href="HMI.html" class="nav-tab">Single Audit</a>
+    <a href="batch.html" class="nav-tab">Batch Auditor</a>
+    <a href="history.html" class="nav-tab active">Historical Trends</a>
+    <a href="error-logs.html" target="_blank" class="nav-tab">Error Logs</a>
+    <a href="tests.html" target="_blank" class="nav-tab">Unit Tests</a>
+  </nav>
+  <div class="header-actions">
+    <button class="btn btn-sm" id="seedDemoBtn">Seed Demo Data</button>
+    <button class="btn btn-sm" id="exportCsvBtn">Export CSV</button>
+    <button class="btn btn-sm" id="exportJsonBtn">Export JSON</button>
+  </div>
+</header>
+
+<div class="main">
+
+  <div class="filter-card">
+    <div class="filter-group">
+      <label for="plantFilter">Industrial Plant</label>
+      <select id="plantFilter"><option value="all">All Plants</option></select>
+    </div>
+    <div class="filter-group">
+      <label for="screenFilter">HMI Screen Tag</label>
+      <select id="screenFilter"><option value="all">All Screens</option></select>
+    </div>
+    <div class="filter-group">
+      <label for="typeFilter">Screen Type</label>
+      <select id="typeFilter">
+        <option value="all">All Types</option>
+        <option value="overview">Overview (Level 1)</option>
+        <option value="unit">Unit Control (Level 2)</option>
+        <option value="detail">Detail (Level 3)</option>
+        <option value="alarm">Alarm (Level 4)</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <label for="rangeFilter">Time Range</label>
+      <select id="rangeFilter">
+        <option value="all">All Time</option>
+        <option value="7d">Last 7 Days</option>
+        <option value="30d">Last 30 Days</option>
+        <option value="90d" selected>Last 90 Days</option>
+        <option value="365d">Last Year</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="kpi-grid">
+    <div class="kpi-card" id="kpiTotalCard">
+      <div class="kpi-val" id="kpiTotalRuns">0</div>
+      <div class="kpi-label">Total Audits</div>
+      <div class="kpi-sub" id="kpiPlantsCount">0 Plants / 0 Screens</div>
+    </div>
+    <div class="kpi-card" id="kpiRiskCard">
+      <div class="kpi-val" id="kpiAvgRisk">—</div>
+      <div class="kpi-label">Avg Risk Score</div>
+      <div class="kpi-sub" id="kpiRiskTrend">—</div>
+    </div>
+    <div class="kpi-card" id="kpiCompCard">
+      <div class="kpi-val" id="kpiAvgCompliance">—</div>
+      <div class="kpi-label">Compliance %</div>
+      <div class="kpi-sub" id="kpiCompTrend">—</div>
+    </div>
+    <div class="kpi-card" id="kpiCogCard">
+      <div class="kpi-val" id="kpiAvgCog">—</div>
+      <div class="kpi-label">Cognitive Load Index</div>
+      <div class="kpi-sub" id="kpiCogTrend">—</div>
+    </div>
+  </div>
+
+  <div class="charts-grid">
+    <div class="chart-card">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Risk &amp; Compliance Score Trends</div>
+          <div class="chart-sub">ISA-101 / NUREG-0700 compliance trajectory over time</div>
+        </div>
+      </div>
+      <div class="canvas-chart-wrap">
+        <canvas id="trendChart"></canvas>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Cognitive Load Index</div>
+          <div class="chart-sub">Extraneous cognitive burden progression</div>
+        </div>
+      </div>
+      <div class="canvas-chart-wrap">
+        <canvas id="cogChart"></canvas>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Issue Categories Breakdown</div>
+          <div class="chart-sub">Findings distribution across standards categories</div>
+        </div>
+      </div>
+      <div class="canvas-chart-wrap">
+        <canvas id="catChart"></canvas>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Fleet Risk Benchmarks</div>
+          <div class="chart-sub">Screen risk comparison against plant baseline</div>
+        </div>
+      </div>
+      <div class="canvas-chart-wrap">
+        <canvas id="benchmarkChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="table-card">
+    <div class="table-header">
+      <div class="table-title">Audit History Log</div>
+      <div style="font-size:12px;color:var(--muted);font-family:var(--mono);" id="tableCount">0 records</div>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Date / Time</th>
+          <th>Plant</th>
+          <th>Screen Name</th>
+          <th>Tag</th>
+          <th>Type</th>
+          <th>Risk</th>
+          <th>Compliance</th>
+          <th>Cog Load</th>
+          <th>Findings</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="historyTableBody">
+        <tr><td colspan="10" style="text-align:center;padding:30px;color:var(--muted);">No audit records found. Click "Seed Demo Data" to populate historical runs.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+<!-- Run Detail / Compare Modal -->
+<div class="modal-backdrop" id="detailModalBackdrop">
+  <div class="modal">
+    <h2 id="modalTitle">Audit Run Details</h2>
+    <div id="modalBody" style="font-size:13px;line-height:1.6;"></div>
+    <div class="modal-actions">
+      <button class="btn" id="modalCloseBtn">Close</button>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <span>Vantage Historical Auditor &middot; IIT Kanpur &middot; Arshbir Singh &amp; Ashman Das</span>
+  <span>Local IndexedDB Database Storage</span>
+</footer>
+
+<script src="db.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+
+let allPlants = [];
+let allScreens = [];
+let allRuns = [];
+let filteredRuns = [];
+
+document.addEventListener('DOMContentLoaded', async () => {
+  try {
+    await window.HMI_DB.openDB();
+    await loadData();
+    setupEventListeners();
+  } catch (err) {
+    console.error('Initialization error:', err);
+  }
+});
+
+async function loadData() {
+  allPlants = await window.HMI_DB.getAllPlants();
+  allScreens = await window.HMI_DB.getAllScreens();
+  allRuns = await window.HMI_DB.getAllAnalysisRuns();
+
+  // Sort runs newest first
+  allRuns.sort((a, b) => b.timestamp - a.timestamp);
+
+  populateFilters();
+  applyFilters();
+}
+
+function populateFilters() {
+  const plantSelect = $('plantFilter');
+  const currentPlant = plantSelect.value;
+  plantSelect.innerHTML = '<option value="all">All Plants</option>' +
+    allPlants.map(p => `<option value="${p.id}">${escapeHtml(p.name)} (${escapeHtml(p.industry_type)})</option>`).join('');
+  if (allPlants.some(p => p.id === currentPlant)) plantSelect.value = currentPlant;
+
+  populateScreenFilter();
+}
+
+function populateScreenFilter() {
+  const plantId = $('plantFilter').value;
+  const screenSelect = $('screenFilter');
+  const screens = plantId === 'all' ? allScreens : allScreens.filter(s => s.plant_id === plantId);
+  screenSelect.innerHTML = '<option value="all">All Screens</option>' +
+    screens.map(s => `<option value="${s.id}">${escapeHtml(s.name)} [${escapeHtml(s.tag)}]</option>`).join('');
+}
+
+function applyFilters() {
+  const plantId = $('plantFilter').value;
+  const screenId = $('screenFilter').value;
+  const screenType = $('typeFilter').value;
+  const range = $('rangeFilter').value;
+
+  const now = Date.now();
+  let rangeMs = Infinity;
+  if (range === '7d') rangeMs = 7 * 86400 * 1000;
+  else if (range === '30d') rangeMs = 30 * 86400 * 1000;
+  else if (range === '90d') rangeMs = 90 * 86400 * 1000;
+  else if (range === '365d') rangeMs = 365 * 86400 * 1000;
+
+  filteredRuns = allRuns.filter(run => {
+    if (plantId !== 'all' && run.plant_id !== plantId) return false;
+    if (screenId !== 'all' && run.screen_id !== screenId) return false;
+    if (now - run.timestamp > rangeMs) return false;
+
+    if (screenType !== 'all') {
+      const scr = allScreens.find(s => s.id === run.screen_id);
+      if (scr && scr.screen_type !== screenType) return false;
+    }
+    return true;
+  });
+
+  updateKPIs();
+  renderTable();
+  renderCharts();
+}
+
+function updateKPIs() {
+  $('kpiTotalRuns').textContent = filteredRuns.length;
+  const pCount = new Set(filteredRuns.map(r => r.plant_id)).size;
+  const sCount = new Set(filteredRuns.map(r => r.screen_id)).size;
+  $('kpiPlantsCount').textContent = `${pCount} Plant(s) / ${sCount} Screen(s)`;
+
+  if (filteredRuns.length === 0) {
+    $('kpiAvgRisk').textContent = '—';
+    $('kpiAvgCompliance').textContent = '—';
+    $('kpiAvgCog').textContent = '—';
+    return;
+  }
+
+  const avgRisk = Math.round(filteredRuns.reduce((sum, r) => sum + r.risk_score, 0) / filteredRuns.length);
+  const avgComp = Math.round(filteredRuns.reduce((sum, r) => sum + r.compliance_score, 0) / filteredRuns.length);
+  const avgCog = Math.round(filteredRuns.reduce((sum, r) => sum + r.cognitive_load, 0) / filteredRuns.length);
+
+  $('kpiAvgRisk').textContent = avgRisk;
+  $('kpiRiskCard').className = 'kpi-card ' + (avgRisk < 35 ? 'good' : avgRisk < 65 ? 'warn' : 'bad');
+
+  $('kpiAvgCompliance').textContent = avgComp + '%';
+  $('kpiCompCard').className = 'kpi-card ' + (avgComp >= 70 ? 'good' : avgComp >= 45 ? 'warn' : 'bad');
+
+  $('kpiAvgCog').textContent = avgCog;
+  $('kpiCogCard').className = 'kpi-card ' + (avgCog < 40 ? 'good' : avgCog < 70 ? 'warn' : 'bad');
+
+  // Trend comparison if multiple runs
+  if (filteredRuns.length >= 2) {
+    const newest = filteredRuns[0];
+    const oldest = filteredRuns[filteredRuns.length - 1];
+    const riskDiff = newest.risk_score - oldest.risk_score;
+    const compDiff = newest.compliance_score - oldest.compliance_score;
+
+    $('kpiRiskTrend').textContent = `${riskDiff <= 0 ? '▼' : '▲'} ${Math.abs(riskDiff)} pts overall`;
+    $('kpiRiskTrend').className = 'kpi-sub ' + (riskDiff <= 0 ? 'up' : 'down');
+
+    $('kpiCompTrend').textContent = `${compDiff >= 0 ? '▲' : '▼'} ${Math.abs(compDiff)}% overall`;
+    $('kpiCompTrend').className = 'kpi-sub ' + (compDiff >= 0 ? 'up' : 'down');
+  } else {
+    $('kpiRiskTrend').textContent = 'Baseline established';
+    $('kpiCompTrend').textContent = 'Baseline established';
+  }
+}
+
+function renderTable() {
+  const tbody = $('historyTableBody');
+  $('tableCount').textContent = `${filteredRuns.length} audit(s)`;
+
+  if (filteredRuns.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:30px;color:var(--muted);">No matching audit runs found.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = filteredRuns.map(r => {
+    const plant = allPlants.find(p => p.id === r.plant_id) || { name: 'Unknown Plant' };
+    const screen = allScreens.find(s => s.id === r.screen_id) || { name: 'Screen', tag: 'SCR-001', screen_type: 'overview' };
+    const dt = new Date(r.timestamp).toLocaleString();
+    const high = r.issues_count_by_severity?.high || 0;
+    const med = r.issues_count_by_severity?.medium || 0;
+    const low = r.issues_count_by_severity?.low || 0;
+
+    return `
+      <tr>
+        <td style="font-family:var(--mono);font-size:11px;color:var(--muted);">${dt}</td>
+        <td><strong>${escapeHtml(plant.name)}</strong></td>
+        <td>${escapeHtml(screen.name)}</td>
+        <td style="font-family:var(--mono);font-size:11px;color:var(--blue);">${escapeHtml(screen.tag)}</td>
+        <td style="font-family:var(--mono);font-size:10px;text-transform:uppercase;">${screen.screen_type || 'overview'}</td>
+        <td><span class="score-pill ${r.risk_score < 35 ? 'good' : r.risk_score < 65 ? 'mid' : 'bad'}">${r.risk_score}</span></td>
+        <td><span class="score-pill ${r.compliance_score >= 70 ? 'good' : r.compliance_score >= 45 ? 'mid' : 'bad'}">${r.compliance_score}%</span></td>
+        <td style="font-family:var(--mono);">${r.cognitive_load}</td>
+        <td>
+          ${high ? `<span class="badge-sev high">${high} H</span>` : ''}
+          ${med ? `<span class="badge-sev medium">${med} M</span>` : ''}
+          ${low ? `<span class="badge-sev low">${low} L</span>` : ''}
+          ${(!high && !med && !low) ? '<span style="color:var(--teal)">Clean</span>' : ''}
+        </td>
+        <td>
+          <button class="btn btn-sm" onclick="viewRunDetails('${r.id}')">Details</button>
+          <button class="btn btn-sm" onclick="deleteRun('${r.id}')" style="border-color:var(--red);color:var(--red);">Delete</button>
+        </td>
+      </tr>`;
+  }).join('');
+}
+
+// --- Canvas Charts Renderer (Crisp HTML5 Canvas Charts) ---
+
+function renderCharts() {
+  renderTrendChart();
+  renderCogChart();
+  renderCatChart();
+  renderBenchmarkChart();
+}
+
+function setupCanvas(canvasId) {
+  const canvas = $(canvasId);
+  const wrap = canvas.parentElement;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = wrap.clientWidth * dpr;
+  canvas.height = wrap.clientHeight * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  return { ctx, width: wrap.clientWidth, height: wrap.clientHeight };
+}
+
+function renderTrendChart() {
+  const { ctx, width, height } = setupCanvas('trendChart');
+  ctx.clearRect(0, 0, width, height);
+
+  if (filteredRuns.length === 0) {
+    drawChartEmpty(ctx, width, height, 'No audit data points');
+    return;
+  }
+
+  // Sort chronological for charts
+  const chronRuns = [...filteredRuns].sort((a, b) => a.timestamp - b.timestamp);
+
+  const padL = 40, padR = 20, padT = 20, padB = 40;
+  const w = width - padL - padR;
+  const h = height - padT - padB;
+
+  // Draw Grid & Axes
+  ctx.strokeStyle = '#2a3139';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = padT + (h / 4) * i;
+    ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(width - padR, y); ctx.stroke();
+    ctx.fillStyle = '#8b949e'; ctx.font = '10px monospace';
+    ctx.fillText(100 - i * 25, 10, y + 3);
+  }
+
+  // Target threshold line (Risk = 30)
+  const targetY = padT + h * (1 - 30/100);
+  ctx.strokeStyle = 'rgba(63, 184, 166, 0.4)';
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath(); ctx.moveTo(padL, targetY); ctx.lineTo(width - padR, targetY); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = '#3fb8a6'; ctx.fillText('Target Threshold (30)', width - padR - 110, targetY - 4);
+
+  // Plot Risk (Red/Amber) and Compliance (Teal)
+  const ptsRisk = [];
+  const ptsComp = [];
+
+  chronRuns.forEach((r, idx) => {
+    const x = padL + (w / Math.max(1, chronRuns.length - 1)) * idx;
+    const yRisk = padT + h * (1 - r.risk_score / 100);
+    const yComp = padT + h * (1 - r.compliance_score / 100);
+    ptsRisk.push({ x, y: yRisk, val: r.risk_score });
+    ptsComp.push({ x, y: yComp, val: r.compliance_score });
+  });
+
+  // Risk line
+  ctx.strokeStyle = '#e2504a'; ctx.lineWidth = 2.5; ctx.beginPath();
+  ptsRisk.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
+  ctx.stroke();
+
+  // Compliance line
+  ctx.strokeStyle = '#3fb8a6'; ctx.lineWidth = 2.5; ctx.beginPath();
+  ptsComp.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
+  ctx.stroke();
+
+  // Draw points
+  ptsRisk.forEach(p => {
+    ctx.fillStyle = '#e2504a'; ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, Math.PI*2); ctx.fill();
+  });
+  ptsComp.forEach(p => {
+    ctx.fillStyle = '#3fb8a6'; ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, Math.PI*2); ctx.fill();
+  });
+
+  // Legend
+  ctx.fillStyle = '#e2504a'; ctx.fillRect(padL, height - 15, 10, 10);
+  ctx.fillStyle = '#e8ecf0'; ctx.font = '10px monospace'; ctx.fillText('Risk Score', padL + 15, height - 6);
+
+  ctx.fillStyle = '#3fb8a6'; ctx.fillRect(padL + 100, height - 15, 10, 10);
+  ctx.fillStyle = '#e8ecf0'; ctx.font = '10px monospace'; ctx.fillText('Compliance %', padL + 115, height - 6);
+}
+
+function renderCogChart() {
+  const { ctx, width, height } = setupCanvas('cogChart');
+  ctx.clearRect(0, 0, width, height);
+
+  if (filteredRuns.length === 0) {
+    drawChartEmpty(ctx, width, height, 'No cognitive load data');
+    return;
+  }
+
+  const chronRuns = [...filteredRuns].sort((a, b) => a.timestamp - b.timestamp);
+  const padL = 40, padR = 20, padT = 20, padB = 35;
+  const w = width - padL - padR;
+  const h = height - padT - padB;
+
+  ctx.strokeStyle = '#2a3139'; ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = padT + (h / 4) * i;
+    ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(width - padR, y); ctx.stroke();
+  }
+
+  const barW = Math.min(30, (w / chronRuns.length) * 0.6);
+  chronRuns.forEach((r, idx) => {
+    const x = padL + (w / chronRuns.length) * idx + (w / chronRuns.length - barW) / 2;
+    const barH = (r.cognitive_load / 100) * h;
+    const y = padT + (h - barH);
+
+    ctx.fillStyle = r.cognitive_load < 40 ? '#3fb8a6' : r.cognitive_load < 70 ? '#f0a500' : '#e2504a';
+    ctx.fillRect(x, y, barW, barH);
+
+    ctx.fillStyle = '#8b949e'; ctx.font = '9px monospace';
+    ctx.fillText(r.cognitive_load, x + barW/2 - 6, y - 4);
+  });
+}
+
+function renderCatChart() {
+  const { ctx, width, height } = setupCanvas('catChart');
+  ctx.clearRect(0, 0, width, height);
+
+  const categories = {
+    'color-overuse': { label: 'Color Overuse', count: 0, color: '#f0a500' },
+    'alarm-clutter': { label: 'Alarm Clutter', count: 0, color: '#e2504a' },
+    'information-density': { label: 'Info Density', count: 0, color: '#5b9fd4' },
+    'navigation-clutter': { label: 'Nav Clutter', count: 0, color: '#3fb8a6' },
+    'contrast-legibility': { label: 'Contrast', count: 0, color: '#a076f8' }
+  };
+
+  filteredRuns.forEach(r => {
+    if (r.issues_count_by_category) {
+      Object.entries(r.issues_count_by_category).forEach(([cat, n]) => {
+        if (categories[cat]) categories[cat].count += n;
+      });
+    }
+  });
+
+  const total = Object.values(categories).reduce((sum, c) => sum + c.count, 0);
+
+  if (total === 0) {
+    drawChartEmpty(ctx, width, height, 'No issue findings reported');
+    return;
+  }
+
+  // Draw Horizontal Bar Breakdown
+  const padL = 120, padR = 40, padT = 20, padB = 20;
+  const w = width - padL - padR;
+  const cats = Object.values(categories);
+  const rowH = (height - padT - padB) / cats.length;
+
+  cats.forEach((cat, idx) => {
+    const y = padT + idx * rowH + rowH * 0.25;
+    const barW = (cat.count / total) * w;
+
+    ctx.fillStyle = '#e8ecf0'; ctx.font = '11px sans-serif';
+    ctx.fillText(cat.label, 10, y + 12);
+
+    ctx.fillStyle = '#171b21';
+    ctx.fillRect(padL, y, w, 16);
+
+    ctx.fillStyle = cat.color;
+    ctx.fillRect(padL, y, Math.max(4, barW), 16);
+
+    ctx.fillStyle = '#8b949e'; ctx.font = '10px monospace';
+    ctx.fillText(`${cat.count} (${Math.round((cat.count/total)*100)}%)`, padL + barW + 8, y + 12);
+  });
+}
+
+function renderBenchmarkChart() {
+  const { ctx, width, height } = setupCanvas('benchmarkChart');
+  ctx.clearRect(0, 0, width, height);
+
+  if (allScreens.length === 0) {
+    drawChartEmpty(ctx, width, height, 'No screen benchmarks available');
+    return;
+  }
+
+  const screenRisks = allScreens.map(scr => {
+    const runs = allRuns.filter(r => r.screen_id === scr.id);
+    const avg = runs.length ? Math.round(runs.reduce((s, r) => s + r.risk_score, 0) / runs.length) : 0;
+    return { name: scr.tag || scr.name, risk: avg };
+  }).slice(0, 6);
+
+  const padL = 80, padR = 20, padT = 20, padB = 30;
+  const w = width - padL - padR;
+  const h = height - padT - padB;
+
+  const barH = (h / screenRisks.length) * 0.6;
+  screenRisks.forEach((s, idx) => {
+    const y = padT + (h / screenRisks.length) * idx;
+    const barW = (s.risk / 100) * w;
+
+    ctx.fillStyle = '#8b949e'; ctx.font = '10px monospace';
+    ctx.fillText(s.name.substr(0, 10), 10, y + barH/2 + 3);
+
+    ctx.fillStyle = s.risk < 35 ? '#3fb8a6' : s.risk < 65 ? '#f0a500' : '#e2504a';
+    ctx.fillRect(padL, y, Math.max(4, barW), barH);
+
+    ctx.fillStyle = '#e8ecf0'; ctx.font = '10px monospace';
+    ctx.fillText(s.risk, padL + barW + 6, y + barH/2 + 3);
+  });
+}
+
+function drawChartEmpty(ctx, width, height, msg) {
+  ctx.fillStyle = '#8b949e'; ctx.font = '12px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText(msg, width / 2, height / 2);
+  ctx.textAlign = 'left';
+}
+
+// --- Event Handlers & Actions ---
+
+function setupEventListeners() {
+  $('plantFilter').addEventListener('change', () => {
+    populateScreenFilter();
+    applyFilters();
+  });
+  $('screenFilter').addEventListener('change', applyFilters);
+  $('typeFilter').addEventListener('change', applyFilters);
+  $('rangeFilter').addEventListener('change', applyFilters);
+
+  $('seedDemoBtn').addEventListener('click', async () => {
+    if (confirm('Populate 6 months of historical HMI audit demo runs across multiple industrial plants?')) {
+      await window.HMI_DB.seedDemoHistoricalData();
+      await loadData();
+      alert('Demo historical data successfully seeded!');
+    }
+  });
+
+  $('exportCsvBtn').addEventListener('click', exportCSV);
+  $('exportJsonBtn').addEventListener('click', exportJSON);
+  $('modalCloseBtn').addEventListener('click', () => $('detailModalBackdrop').classList.remove('open'));
+}
+
+async function viewRunDetails(runId) {
+  const run = allRuns.find(r => r.id === runId);
+  if (!run) return;
+
+  const plant = allPlants.find(p => p.id === run.plant_id) || { name: 'Unknown Plant' };
+  const screen = allScreens.find(s => s.id === run.screen_id) || { name: 'Screen', tag: 'SCR-001' };
+
+  $('modalTitle').textContent = `Audit Details — ${screen.name} (${screen.tag})`;
+  $('modalBody').innerHTML = `
+    <p><strong>Plant:</strong> ${escapeHtml(plant.name)}</p>
+    <p><strong>Timestamp:</strong> ${new Date(run.timestamp).toLocaleString()}</p>
+    <p><strong>Risk Score:</strong> <span class="score-pill ${run.risk_score < 35 ? 'good' : run.risk_score < 65 ? 'mid' : 'bad'}">${run.risk_score}</span></p>
+    <p><strong>Compliance Score:</strong> <span class="score-pill ${run.compliance_score >= 70 ? 'good' : run.compliance_score >= 45 ? 'mid' : 'bad'}">${run.compliance_score}%</span></p>
+    <p><strong>Cognitive Load Index:</strong> ${run.cognitive_load}</p>
+    <hr style="border-color:var(--line);margin:12px 0;">
+    <p style="font-weight:600;margin-bottom:8px;">Identified Findings (${run.issues ? run.issues.length : 0}):</p>
+    ${(run.issues || []).map(i => `
+      <div style="background:var(--surface-2);border:1px solid var(--line);border-left:3px solid ${severityColor(i.severity)};padding:8px 12px;margin-bottom:6px;border-radius:4px;">
+        <div style="font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;">${i.category} &middot; <span style="color:${severityColor(i.severity)}">${i.severity}</span></div>
+        <div style="font-size:12px;margin-top:4px;">${escapeHtml(i.issue)}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px;">Fix: ${escapeHtml(i.recommendation)}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px;font-family:var(--mono);">Location: [x:${i.x}, y:${i.y}, w:${i.w}, h:${i.h}]</div>
+        ${i.standard_ref ? `<div style="font-family:var(--mono);font-size:10px;color:var(--blue);margin-top:2px;">${escapeHtml(i.standard_ref)}</div>` : ''}
+      </div>
+    `).join('')}
+  `;
+
+  $('detailModalBackdrop').classList.add('open');
+}
+
+async function deleteRun(runId) {
+  if (confirm('Delete this historical audit run?')) {
+    await window.HMI_DB.deleteAnalysisRun(runId);
+    await loadData();
+  }
+}
+
+function exportCSV() {
+  if (filteredRuns.length === 0) return alert('No data to export.');
+  let csv = 'Timestamp,Plant,ScreenName,ScreenTag,RiskScore,CompliancePercent,CognitiveLoad,HighIssues,MediumIssues,LowIssues\n';
+  const escapeCsv = (str) => String(str).replace(/"/g, '""');
+  filteredRuns.forEach(r => {
+    const plant = allPlants.find(p => p.id === r.plant_id) || { name: 'Unknown' };
+    const screen = allScreens.find(s => s.id === r.screen_id) || { name: 'Screen', tag: 'SCR' };
+    csv += `"${new Date(r.timestamp).toISOString()}","${escapeCsv(plant.name)}","${escapeCsv(screen.name)}","${escapeCsv(screen.tag)}",${r.risk_score},${r.compliance_score},${r.cognitive_load},${r.issues_count_by_severity?.high||0},${r.issues_count_by_severity?.medium||0},${r.issues_count_by_severity?.low||0}\n`;
+  });
+  downloadFile(csv, 'vantage-history.csv', 'text/csv');
+}
+
+function exportJSON() {
+  if (filteredRuns.length === 0) return alert('No data to export.');
+  downloadFile(JSON.stringify(filteredRuns, null, 2), 'signal-noise-history.json', 'application/json');
+}
+
+function downloadFile(content, fileName, mimeType) {
+  const blob = new Blob([content], { type: mimeType });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = fileName;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function severityColor(sev) {
+  return { high: '#e2504a', medium: '#f0a500', low: '#3fb8a6' }[sev] || '#8b949e';
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div'); d.textContent = s; return d.innerHTML;
+}
+</script>
+</body>
+</html>
