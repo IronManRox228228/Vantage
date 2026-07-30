@@ -553,7 +553,7 @@ let heatmapMode = 'thermal'; // 'thermal' | 'solid' | 'hybrid' | 'grid'
 let heatmapOpacity = 0.65;
 
 const apiKeyInput = $('apiKey');
-const DEFAULT_API_KEY = 'AIzaSyBpd2ribU0vt7ChX6NfKnYHzHQDsjWqZdY';
+const DEFAULT_API_KEY = 'YOUR-API-KEY';
 if (!localStorage.getItem('hmi_gemini_key')) localStorage.setItem('hmi_gemini_key', DEFAULT_API_KEY);
 if (localStorage.getItem('hmi_gemini_key')) apiKeyInput.value = localStorage.getItem('hmi_gemini_key');
 
