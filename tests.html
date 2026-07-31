@@ -202,6 +202,29 @@ registerTest('IndexedDB Database CRUD & Perceptual Hashing', async () => {
   assertEqual(dist, 2, 'Hamming distance between hashes is 2');
 });
 
+registerTest('Mock AI Integration Test (Zero-Cost Pipeline Verification)', async () => {
+  const mockAIResponse = {
+    detected_elements: { data_elements: 42, alarm_indicators: 10, navigation_items: 5, distinct_colors: 12 },
+    layout_analysis: "The layout is extremely cluttered with alarms and colors everywhere.",
+    issues: [
+      { x: 10, y: 10, w: 20, h: 20, category: 'alarm-clutter', severity: 'high', issue: 'Too many alarms.', recommendation: 'Group them.', standard_ref: 'ISA-101' },
+      { x: -50, y: 200, w: 50, h: 50, category: 'invalid-cat', severity: 'super-high', issue: 'Out of bounds.', recommendation: 'Fix.' } 
+    ]
+  };
+
+  const features = { distinctColors: 15, alarmDensity: 0.15, ids: 0.4, minContrastRatio: 2.0, colorEntropy: 4.0 };
+  
+  const normalized = mockAIResponse.issues.map(normalizeIssueSynthetic);
+  assertEqual(normalized[1].x, 0, 'OOB x clamped to 0');
+  assertEqual(normalized[1].y, 99, 'OOB y clamped to 99');
+  assertEqual(normalized[1].severity, 'medium', 'Invalid severity clamped to medium');
+  
+  const finalIssues = applyRuleEngineSynthetic(normalized, features);
+  
+  assert(finalIssues.filter(i => i.category === 'alarm-clutter').length === 1, 'Should not duplicate AI findings');
+  assert(finalIssues.some(i => i.category === 'color-overuse'), 'Should auto-inject missed rules');
+});
+
 // --- Runner Execution ---
 
 async function runAllTests() {

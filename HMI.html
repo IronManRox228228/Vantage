@@ -1089,7 +1089,7 @@
     let heatmapOpacity = 0.65;
 
     const apiKeyInput = $('apiKey');
-    const DEFAULT_API_KEY = 'AIzaSyD-X7EQV16CXS2Ehw9sVHPZfvhIMmYt2w4';
+    const DEFAULT_API_KEY = ''; // Removed hardcoded key for security
     if (!localStorage.getItem('hmi_gemini_key')) localStorage.setItem('hmi_gemini_key', DEFAULT_API_KEY);
     if (localStorage.getItem('hmi_gemini_key')) apiKeyInput.value = localStorage.getItem('hmi_gemini_key');
 
@@ -1938,7 +1938,7 @@ Use these metrics to inform severity. For each issue return:
 - recommendation: one actionable fix
 - standard_ref: ISA-101 or NUREG-0700 reference
 
-Find 4-10 issues. Be specific to THIS screen.`;
+Before listing issues, provide a 'layout_analysis' thinking step. Find 4-10 issues. Be specific to THIS screen.`;
 
       const schema = {
         type: "OBJECT",
@@ -1952,6 +1952,7 @@ Find 4-10 issues. Be specific to THIS screen.`;
               distinct_colors: { type: "NUMBER" }
             }
           },
+          layout_analysis: { type: "STRING", description: "Step-by-step reasoning of the visual layout and compliance before listing issues." },
           issues: {
             type: "ARRAY",
             items: {
@@ -1967,7 +1968,7 @@ Find 4-10 issues. Be specific to THIS screen.`;
             }
           }
         },
-        required: ["detected_elements", "issues"]
+        required: ["detected_elements", "layout_analysis", "issues"]
       };
 
       try {
