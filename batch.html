@@ -622,26 +622,61 @@ Before listing issues, provide a 'layout_analysis' thinking step. Find 4-10 issu
     required: ["detected_elements", "layout_analysis", "issues"]
   };
 
-  const response = await fetch(
-    "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent",
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-      body: JSON.stringify({
-        contents: [{ parts: [
-          { text: prompt },
-          { inline_data: { mime_type: file.type, data: imgData.base64 } }
-        ]}],
-        generationConfig: { responseMimeType: "application/json", responseSchema: schema }
-      })
-    }
-  );
+  let parsed;
+  const finalApiKey = apiKey || localStorage.getItem('hmi_gemini_key') || DEFAULT_API_KEY;
 
-  const data = await response.json();
-  if (data.error) throw new Error(data.error.message || 'API error');
-  const textBlock = data.candidates?.[0]?.content?.parts?.find(p => p.text);
-  if (!textBlock) throw new Error('No API response');
-  const parsed = JSON.parse(textBlock.text);
+  // --- Primary: Gemini 3.1 Flash Lite (cloud) ---
+  try {
+    if (!finalApiKey) throw new Error('No API key configured');
+    console.log('[Vantage Batch] Trying Gemini cloud API...');
+    const geminiResponse = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${encodeURIComponent(finalApiKey)}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [
+            { text: prompt },
+            { inline_data: { mime_type: file.type, data: imgData.base64 } }
+          ]}],
+          generationConfig: { responseMimeType: "application/json", responseSchema: schema }
+        })
+      }
+    );
+    const geminiData = await geminiResponse.json();
+    if (geminiData.error) throw new Error(geminiData.error.message || 'Gemini API error');
+    const geminiText = geminiData.candidates?.[0]?.content?.parts?.find(p => p.text);
+    if (!geminiText) throw new Error('No response from Gemini');
+    parsed = JSON.parse(geminiText.text);
+    console.log('[Vantage Batch] Gemini cloud API succeeded.');
+  } catch (cloudErr) {
+    // --- Fallback: Local llama.cpp server ---
+    console.warn('[Vantage Batch] Gemini cloud failed:', cloudErr.message, '— falling back to local model...');
+    const localPrompt = prompt + "\n\nOutput strictly valid JSON matching this schema:\n" + JSON.stringify(schema);
+    const localResponse = await fetch("http://127.0.0.1:8080/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "gemma-4",
+        messages: [{
+          role: "user",
+          content: [
+            { type: "image_url", image_url: { url: `data:${file.type};base64,${imgData.base64}` } },
+            { type: "text", text: localPrompt }
+          ]
+        }],
+        response_format: { type: "json_object" },
+        temperature: 0.1
+      })
+    });
+    const localData = await localResponse.json();
+    if (localData.error) throw new Error(localData.error.message || 'Local model error');
+    const localText = localData.choices?.[0]?.message?.content;
+    if (!localText) throw new Error('No response from local model');
+    parsed = JSON.parse(localText);
+    console.log('[Vantage Batch] Local model fallback succeeded.');
+  }
+
   return parsed.issues || [];
 }
 
