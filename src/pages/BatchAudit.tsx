@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Layers, Upload, Play, Save, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Layers, Upload, Play, Save, CheckCircle, AlertTriangle, BookOpen } from 'lucide-react';
 import { extractHmiFeatures } from '../lib/workerExtractor';
 import { saveBatchRun } from '../lib/dbService';
+import { buildGroundedContextForAudit } from '../lib/ragEngine';
 
 interface BatchItem {
   name: string;
@@ -10,6 +11,7 @@ interface BatchItem {
   riskScore?: number;
   complianceScore?: number;
   issuesCount?: number;
+  primaryCitation?: string;
 }
 
 export const BatchAudit: React.FC = () => {
@@ -57,10 +59,14 @@ export const BatchAudit: React.FC = () => {
           const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
           const feat = extractHmiFeatures(imageData);
 
+          // Retrieve grounded standards for screen
+          const { regulations } = buildGroundedContextForAudit(feat);
+
           updated[i].status = 'done';
           updated[i].riskScore = feat.riskScore;
           updated[i].complianceScore = feat.complianceScore;
-          updated[i].issuesCount = feat.alarmDensity > 0.05 ? 3 : 1;
+          updated[i].issuesCount = feat.alarmDensity > 0.04 ? 3 : feat.colorEntropy > 2.8 ? 2 : 1;
+          updated[i].primaryCitation = regulations[0]?.citation || 'ANSI/ISA-101.01-2015 §5.3';
         }
       } catch (e) {
         updated[i].status = 'error';
@@ -90,9 +96,10 @@ export const BatchAudit: React.FC = () => {
         name: b.name,
         risk: b.riskScore,
         compliance: b.complianceScore,
+        citation: b.primaryCitation,
       })),
     });
-    alert('Batch Audit summary saved successfully!');
+    alert('Batch Audit summary saved successfully with Grounded Citations!');
   };
 
   return (
@@ -101,10 +108,10 @@ export const BatchAudit: React.FC = () => {
         <div>
           <h2 style={{ fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px', fontFamily: 'var(--mono)' }}>
             <Layers size={18} color="var(--amber)" />
-            BATCH HMI AUDITOR
+            BATCH HMI AUDITOR (GROUNDED RAG)
           </h2>
           <p style={{ fontSize: '11px', color: 'var(--muted)' }}>
-            Audit entire plant folders of HMI screens in parallel
+            Audit entire plant folders of HMI screens grounded in ANSI/ISA-101.01-2015 and NUREG-0700 Rev. 1
           </p>
         </div>
 
@@ -157,7 +164,7 @@ export const BatchAudit: React.FC = () => {
 
       {/* Results Table */}
       <div className="card">
-        <h3 style={{ fontSize: '13px', marginBottom: '12px', color: 'var(--amber)' }}>Batch Audit Queue & Results</h3>
+        <h3 style={{ fontSize: '13px', marginBottom: '12px', color: 'var(--amber)' }}>Batch Audit Queue & Grounded Standards</h3>
         {batchItems.length === 0 ? (
           <p style={{ fontSize: '11px', color: 'var(--muted)', padding: '24px 0', textAlign: 'center' }}>
             No HMI screen files selected. Click "Select Screenshots" above to begin batch analysis.
@@ -171,7 +178,7 @@ export const BatchAudit: React.FC = () => {
                 <th style={{ padding: '8px 12px' }}>Status</th>
                 <th style={{ padding: '8px 12px' }}>Risk Score</th>
                 <th style={{ padding: '8px 12px' }}>Compliance</th>
-                <th style={{ padding: '8px 12px' }}>Issues</th>
+                <th style={{ padding: '8px 12px' }}>Grounded Standard</th>
               </tr>
             </thead>
             <tbody>
@@ -182,13 +189,13 @@ export const BatchAudit: React.FC = () => {
                   <td style={{ padding: '8px 12px' }}>
                     {item.status === 'pending' && <span style={{ color: 'var(--muted)' }}>Pending</span>}
                     {item.status === 'processing' && <span style={{ color: 'var(--amber)' }}>Processing...</span>}
-                    {item.status === 'done' && <span style={{ color: 'var(--teal)', display: 'flex', alignItems: 'center', gap: '4px' }}><CheckCircle size={12} /> Done</span>}
+                    {item.status === 'done' && <span style={{ color: 'var(--teal)', display: 'flex', alignItems: 'center', gap: '4px' }}><CheckCircle size={12} /> Grounded</span>}
                     {item.status === 'error' && <span style={{ color: 'var(--red)' }}>Error</span>}
                   </td>
                   <td style={{ padding: '8px 12px', fontWeight: 'bold' }}>{item.riskScore !== undefined ? `${item.riskScore}/100` : '--'}</td>
                   <td style={{ padding: '8px 12px', fontWeight: 'bold' }}>{item.complianceScore !== undefined ? `${item.complianceScore}%` : '--'}</td>
                   <td style={{ padding: '8px 12px' }}>
-                    {item.issuesCount !== undefined ? <span className="badge badge-high">{item.issuesCount} Violations</span> : '--'}
+                    {item.primaryCitation ? <span className="badge badge-low">{item.primaryCitation}</span> : '--'}
                   </td>
                 </tr>
               ))}

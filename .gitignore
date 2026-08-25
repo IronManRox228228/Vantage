@@ -54,7 +54,9 @@ ehthumbs.db
 Thumbs.db
 [Dd]esktop.ini
 
-# Temporary Diagnostic Files
+# Temporary Diagnostic & Render Files
 scratch/
 tmp/
 temp/
+temp_pdf_render/
+data/isa101_pages/

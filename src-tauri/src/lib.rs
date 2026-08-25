@@ -27,7 +27,7 @@ pub struct GeminiRequest {
 /// Securely proxies Gemini Vision API calls from native Rust.
 /// Prevents GEMINI_API_KEY from ever being exposed to client-side JS memory or network tools.
 #[tauri::command]
-pub async fn analyze_hmi_with_gemini(image_base64: String, prompt: String) -> Result<String, String> {
+async fn analyze_hmi_with_gemini(image_base64: String, prompt: String) -> Result<String, String> {
     dotenvy::dotenv().ok();
 
     let api_key = env::var("GEMINI_API_KEY")
@@ -89,7 +89,7 @@ pub async fn analyze_hmi_with_gemini(image_base64: String, prompt: String) -> Re
 
 /// Native Rust environment check
 #[tauri::command]
-pub fn get_env_status() -> Result<serde_json::Value, String> {
+fn get_env_status() -> Result<serde_json::Value, String> {
     dotenvy::dotenv().ok();
 
     let has_gemini = env::var("GEMINI_API_KEY").map(|k| !k.trim().is_empty()).unwrap_or(false);
