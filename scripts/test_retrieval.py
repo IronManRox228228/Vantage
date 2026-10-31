@@ -16,7 +16,7 @@ test_queries = [
 ]
 
 def tokenize(text):
-    return [w.lower() for w in re.findall(r'[A-Za-z0-9\-\.\_]+', text) if len(w) > 1]
+    return [w for w in re.findall(r'[a-z0-9]+', text.lower()) if len(w) > 1]
 
 bm25_meta = kb['bm25_metadata']
 avg_dl = bm25_meta['avg_doc_len']

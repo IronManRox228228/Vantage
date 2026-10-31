@@ -162,7 +162,7 @@ print(f"  Total knowledge base chunks: {len(chunks)}")
 print("\n[3/3] Generating BM25 Index & Gemini Embeddings...")
 
 def tokenize(text):
-    return [w.lower() for w in re.findall(r'[A-Za-z0-9\-\.\_]+', text) if len(w) > 1]
+    return [w for w in re.findall(r'[a-z0-9]+', text.lower()) if len(w) > 1]
 
 doc_lengths = []
 doc_freqs = {}

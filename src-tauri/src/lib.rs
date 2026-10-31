@@ -20,8 +20,16 @@ pub struct GeminiContent {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct GeminiGenerationConfig {
+    #[serde(rename = "responseMimeType", skip_serializing_if = "Option::is_none")]
+    pub response_mime_type: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct GeminiRequest {
     pub contents: Vec<GeminiContent>,
+    #[serde(rename = "generationConfig", skip_serializing_if = "Option::is_none")]
+    pub generation_config: Option<GeminiGenerationConfig>,
 }
 
 /// Securely proxies Gemini Vision API calls from native Rust.
@@ -57,6 +65,9 @@ async fn analyze_hmi_with_gemini(image_base64: String, prompt: String) -> Result
                 },
             ],
         }],
+        generation_config: Some(GeminiGenerationConfig {
+            response_mime_type: Some("application/json".to_string()),
+        }),
     };
 
     let url = format!(

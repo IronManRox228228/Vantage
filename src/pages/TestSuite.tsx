@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { TestTube, Play, CheckCircle, XCircle } from 'lucide-react';
 import { extractHmiFeatures } from '../lib/workerExtractor';
+import { retrieveGroundedRegulations } from '../lib/ragEngine';
 import { hashDistance, addPlant, getAllPlants } from '../lib/dbService';
 
 interface TestResult {
@@ -63,6 +64,25 @@ export const TestSuite: React.FC = () => {
       }
     } catch (e: any) {
       testList.push({ name: 'Hybrid Supabase & Local Database Layer', passed: false, message: e.message });
+    }
+
+    // Test 4: Hybrid RAG grounded retrieval returns verified, relevant clauses
+    try {
+      const colorHits = retrieveGroundedRegulations(
+        'color overuse red yellow non-alarm background grayscale normal palette ISA-101',
+        'color-overuse',
+        3
+      );
+      const retrievalOk = colorHits.length > 0 && colorHits[0].category === 'color-overuse';
+      testList.push({
+        name: 'Hybrid RAG Grounded Retrieval Engine',
+        passed: retrievalOk,
+        message: retrievalOk
+          ? `Retrieved ${colorHits.length} relevant grounded regulation(s) (top score: ${colorHits[0].score}).`
+          : 'No grounded color-overuse regulations were retrieved for the test query.',
+      });
+    } catch (e: any) {
+      testList.push({ name: 'Hybrid RAG Grounded Retrieval Engine', passed: false, message: e.message });
     }
 
     setResults(testList);

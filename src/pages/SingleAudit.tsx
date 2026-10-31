@@ -16,6 +16,12 @@ async function invokeTauriCommand<T>(cmd: string, args?: Record<string, any>): P
   }
 }
 
+// Allowed compliance categories & severities enforced on AI output
+const ALLOWED_CATEGORIES = ['color-overuse', 'alarm-clutter', 'information-density', 'navigation-clutter', 'contrast-legibility'];
+const ALLOWED_SEVERITIES = ['high', 'medium', 'low'];
+
+const normalizeForCompare = (s?: string): string => (s || '').replace(/\s+/g, ' ').trim().toLowerCase();
+
 export const SingleAudit: React.FC = () => {
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -24,6 +30,7 @@ export const SingleAudit: React.FC = () => {
   const [aiSummary, setAiSummary] = useState<string>('');
   const [selectedIssueIndex, setSelectedIssueIndex] = useState<number | null>(null);
   const [retrievedRegulations, setRetrievedRegulations] = useState<GroundedRegulation[]>([]);
+  const [triggeredCategories, setTriggeredCategories] = useState<string[]>([]);
 
   const [plants, setPlants] = useState<Plant[]>([]);
   const [screens, setScreens] = useState<Screen[]>([]);
@@ -61,6 +68,7 @@ export const SingleAudit: React.FC = () => {
       setIssues([]);
       setAiSummary('');
       setRetrievedRegulations([]);
+      setTriggeredCategories([]);
     };
     reader.readAsDataURL(file);
   };
@@ -88,8 +96,9 @@ export const SingleAudit: React.FC = () => {
       setFeatures(feat);
 
       // 2. Run Hybrid RAG Retrieval: Ground on ANSI/ISA-101.01-2015 & NUREG-0700 Rev. 1
-      const { regulations, groundedPromptContext } = buildGroundedContextForAudit(feat);
+      const { regulations, triggeredCategories: screenTriggeredCategories, groundedPromptContext } = buildGroundedContextForAudit(feat);
       setRetrievedRegulations(regulations);
+      setTriggeredCategories(screenTriggeredCategories);
 
       // 3. Construct Grounded LLM Prompt
       const prompt = `You are Vantage, an expert Human-System Interface (HSI) and SCADA compliance auditor.
@@ -105,10 +114,13 @@ Deterministic Image Analysis Metrics for this screen:
 - Minimum VDU Contrast Ratio: ${feat.minContrastRatio}:1 (Threshold: >= 4.5:1, preferred >= 7:1)
 
 STRICT COMPLIANCE INSTRUCTIONS:
-1. Every detected issue MUST be directly grounded in the provided normative regulations above.
-2. Specify the exact 'standard_ref' citation (e.g. "ANSI/ISA-101.01-2015 §5.3" or "NUREG-0700 Rev. 1 §1.5.1-2").
-3. Include an exact 'grounded_quote' or normative rule from the retrieved standard.
-4. Categorize violations ONLY as: "color-overuse", "alarm-clutter", "information-density", "navigation-clutter", or "contrast-legibility".
+1. Every detected issue MUST be directly grounded in the provided normative regulations above (the GROUNDED REGULATORY KNOWLEDGE BASE block).
+2. Specify the exact 'standard_ref' citation (e.g. "ANSI/ISA-101.01-2015 §5.3" or "NUREG-0700 Rev. 1 §1.5.1-2") that the issue is drawn from.
+3. Include an exact 'grounded_quote' or normative rule from the retrieved standard. The quote MUST be copied verbatim (whitespace-normalized) from the retrieved Grounded Requirement text.
+4. Do NOT invent, fabricate, or pull from memory any standard text, quote, section, or violation. If the provided retrieved context does not support a violation, omit the issue entirely.
+5. Only reference regulation clauses that were actually retrieved for this screen.
+6. Categorize violations ONLY as: "color-overuse", "alarm-clutter", "information-density", "navigation-clutter", or "contrast-legibility".
+7. Limit the issues array to the most severe, evidence-backed violations (max 5).
 
 Return JSON ONLY matching format:
 {
@@ -133,12 +145,29 @@ Return JSON ONLY matching format:
           prompt,
         });
         const parsed = JSON.parse(rawResponse);
-        const textContent = parsed.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        const textContent = parsed.candidates?.[0]?.content?.parts?.map((p: any) => p?.text || '').join('') || '';
         const jsonMatch = textContent.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
           const aiJson = JSON.parse(jsonMatch[0]);
           setAiSummary(aiJson.summary || '');
-          setIssues(aiJson.issues || []);
+
+          // Grounding enforcement: validate AI issues against the retrieved context.
+          const retrievedTexts = regulations.map((r) => normalizeForCompare(r.text));
+          const groundedQuoteExists = (quote?: string) => {
+            const nq = normalizeForCompare(quote);
+            if (!nq) return false;
+            return retrievedTexts.some((t) => t.includes(nq));
+          };
+
+          const groundedIssues = (aiJson.issues || []).filter((issue: any) => {
+            const categoryOk = ALLOWED_CATEGORIES.includes(issue.category);
+            const severityOk = ALLOWED_SEVERITIES.includes(issue.severity);
+            const quoteOk = groundedQuoteExists(issue.grounded_quote);
+            const categoryTriggered = triggeredCategories.length === 0 || triggeredCategories.includes(issue.category);
+            return categoryOk && severityOk && quoteOk && categoryTriggered;
+          });
+
+          setIssues(groundedIssues.slice(0, 5));
         }
       } catch (err) {
         console.warn('Native Rust Gemini API call failed or in browser mode, falling back to grounded rule engine.');
